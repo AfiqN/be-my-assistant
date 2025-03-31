@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # --- Embedding Model Handling ---
 
-def initialize_embedding_model(model_name: str = "all-MiniLM-L6-v2") -> Any:
+def initialize_embedding_model(model_name: str = "paraphrase-multilingual-MiniLM-L12-v2") -> Any:
     """
     Initializes and loads a Sentence Transformer model.
 

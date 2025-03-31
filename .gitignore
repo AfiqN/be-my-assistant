@@ -2,6 +2,9 @@
 __pycache__/
 *.py[cod]
 *$py.class
+sample.pdf
+chroma_db_test/
+chroma.sqlite3
 
 # C extensions
 *.so
