@@ -5,6 +5,8 @@ __pycache__/
 sample.pdf
 chroma_db_test/
 chroma.sqlite3
+chroma_db/
+production_db/
 
 # C extensions
 *.so

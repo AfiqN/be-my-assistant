@@ -2,13 +2,13 @@ import logging
 from typing import Optional, List, Tuple, Any # Any for model types
 
 # Import functions and classes from other core modules
-from vector_store_manager import (
+from .vector_store_manager import (
     initialize_embedding_model,    
     initialize_vector_store,      
     query_vector_store
 )
 # Import LLM function from llm_interface
-from llm_interface import invoke_llm_langchain
+from .llm_interface import invoke_llm_langchain
 
 from langchain_core.prompts import ChatPromptTemplate
 # No longer need StrOutputParser or RunnablePassthrough if LLM is called externally
