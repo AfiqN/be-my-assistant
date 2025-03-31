@@ -178,7 +178,7 @@ def query_vector_store(
     collection: Collection,
     query_text: str,
     embedding_model: Any,
-    n_results: int = 5
+    n_results: int = 3
 ) -> Optional[List[Tuple[str, float]]]:
     """
     Queries the vector store to find documents similar to the query text.

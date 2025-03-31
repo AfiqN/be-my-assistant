@@ -1,6 +1,11 @@
 import logging
 from contextlib import asynccontextmanager # Required for lifespan management
 from fastapi import FastAPI, Request, HTTPException, status # Import Request, HTTPException, status
+# Import StaticFiles for serving CSS/JS and Jinja2Templates for HTML
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+# APIRouter might be needed if you move the HTML endpoint later
+# from fastapi import APIRouter
 
 # Import the API router from endpoints.py and the application settings
 from app.api.endpoints import router as api_router
@@ -14,9 +19,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # --- Lifespan Management for Shared Resources ---
-# This async context manager handles application startup and shutdown events.
-# It's used to initialize and clean up resources like models and DB connections.
-
+# (Your existing lifespan code remains unchanged here)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # === Code here runs ON STARTUP ===
@@ -27,11 +30,7 @@ async def lifespan(app: FastAPI):
     embedding_model = initialize_embedding_model(settings.EMBEDDING_MODEL_NAME)
     if embedding_model is None:
         logger.error("CRITICAL FAILURE: Embedding model could not be initialized on startup.")
-        # Raise an error to potentially stop the application from starting
-        # if the model is absolutely essential.
         raise RuntimeError("Could not initialize embedding model during application startup.")
-    # Store the initialized model in the application state object (`app.state`)
-    # This makes it accessible via `request.app.state.embedding_model` in dependencies/endpoints.
     app.state.embedding_model = embedding_model
     logger.info("Embedding model loaded and stored in application state.")
 
@@ -44,7 +43,6 @@ async def lifespan(app: FastAPI):
     if vector_collection is None:
         logger.error("CRITICAL FAILURE: Vector store collection could not be initialized on startup.")
         raise RuntimeError("Could not initialize vector store collection during application startup.")
-    # Store the initialized collection object in the application state.
     app.state.vector_collection = vector_collection
     try:
         # Log the count to confirm connection/initialization success
@@ -53,57 +51,65 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Could not get initial count from vector store collection, but initialization seemed okay: {e}")
 
-
     logger.info("Application startup sequence completed successfully.")
 
     yield # The application runs while the context manager is active (after yield)
 
     # === Code here runs ON SHUTDOWN ===
     logger.info("Application shutdown sequence initiated...")
-    # Perform any cleanup if necessary (e.g., closing database connections if not persistent)
-    # For SentenceTransformer and Chroma PersistentClient, explicit cleanup is often not needed.
-    # Clear the state variables
+    # Perform any cleanup if necessary
     app.state.embedding_model = None
     app.state.vector_collection = None
     logger.info("Shared resources cleaned up from application state.")
     logger.info("Application shutdown sequence completed.")
 
 
-# Create the main FastAPI application instance
+# --- Create FastAPI App Instance ---
 # Register the 'lifespan' manager to handle startup/shutdown events.
 app = FastAPI(
     title="Be My Assistant API",
-    description="API for RAG Chatbot Assistant",
+    description="API for RAG Chatbot Assistant with Frontend", # Updated description
     version="0.1.0",
-    lifespan=lifespan # <--- Register the lifespan context manager
+    lifespan=lifespan
 )
 
-# --- Root Endpoint ---
-@app.get("/", tags=["General"]) # Added tags for better organization in docs
-async def read_root():
-    """
-    Root endpoint providing a simple welcome message.
-    Useful for checking if the server is running.
-    """
-    return {"message": "Welcome to Be My Assistant API! Visit /docs for API documentation."}
+# --- Mount Static Files Directory ---
+# This line tells FastAPI: "Any request starting with '/static' should look for a corresponding file
+# inside the directory named 'static' relative to where the app is running".
+# The 'name="static"' allows generating URLs for static files if needed.
+# Ensure the 'static/' directory exists at your project root (alongside 'app/').
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- Health Check Endpoint (Updated) ---
-@app.get("/health", tags=["General"])
+# --- Setup Jinja2 Templates ---
+# This tells FastAPI where to find HTML template files.
+# Ensure the 'templates/' directory exists at your project root.
+templates = Jinja2Templates(directory="templates")
+
+# --- Frontend Endpoint (Serves index.html) ---
+# We replace the old root endpoint with one that serves the HTML page.
+@app.get("/", tags=["Frontend", "general"], include_in_schema=False) # Use GET for web pages, exclude from OpenAPI docs
+async def serve_index_page(request: Request):
+    """
+    Serves the main index.html page for the chatbot frontend.
+    """
+    # 'request' object is required by Jinja2Templates for context.
+    # It renders the 'index.html' file found in the 'templates' directory.
+    return templates.TemplateResponse("index.html", {"request": request})
+
+# --- Health Check Endpoint ---
+# Keep the health check, maybe tag it differently for docs organization
+@app.get("/health", tags=["Status"])
 async def health_check(request: Request):
     """
-    Checks the operational status of the API, including critical components
-    like the embedding model and vector store connection.
+    Checks the operational status of the API's critical components.
     """
-    # Check if the resources stored in app.state during startup are available.
+    # (Your existing health check logic remains unchanged here)
     model_ok = hasattr(request.app.state, 'embedding_model') and request.app.state.embedding_model is not None
     db_ok = hasattr(request.app.state, 'vector_collection') and request.app.state.vector_collection is not None
 
     if model_ok and db_ok:
-        # If resources are okay, return a success status.
-        # Optionally add more checks, like trying a dummy query on the vector store.
         return {"status": "ok", "embedding_model_loaded": True, "vector_store_initialized": True}
     else:
-        # If critical components failed to load, return a 503 Service Unavailable error.
         logger.error(f"Health check failed: Model OK={model_ok}, DB OK={db_ok}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -116,12 +122,12 @@ async def health_check(request: Request):
         )
 
 # --- Include API Routers ---
-# Mount the router defined in app.api.endpoints.py onto the main application.
-# The 'prefix' argument means all routes defined in api_router will start with '/api/v1'.
-# The 'tags' argument helps group these endpoints in the API documentation.
-app.include_router(api_router, prefix="/api/v1", tags=["RAG API"])
+# Mount the API endpoints defined in app.api.endpoints.py (like /upload, /chat)
+# These will be accessible under the '/api/v1' prefix.
+app.include_router(api_router, prefix="/api/v1", tags=["RAG API Endpoints"])
 
-logger.info("FastAPI application configured. API router included under /api/v1 prefix.")
+logger.info("FastAPI application configured. Static files and templates enabled. API router included under /api/v1 prefix.")
 
 # To run this application:
-# uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# uvicorn app.main:app --reload --port 8000
+# Then access the frontend at http://localhost:8000/

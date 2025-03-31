@@ -1,0 +1,102 @@
+body {
+    background-color: #f0f2f5; /* Slightly off-white background for contrast */
+}
+
+.main-content-card {
+    max-width: 800px; /* Limit max width for better readability on large screens */
+    margin: 2rem auto; /* Center the card */
+}
+
+#chatbox {
+    height: 450px; /* Increased height */
+    border: 1px solid #dee2e6;
+    overflow-y: auto; /* Enable vertical scrolling */
+    padding: 15px; /* Increased padding */
+    background-color: #ffffff; /* White background for chat area */
+    margin-bottom: 1rem;
+    display: flex; /* Use flexbox for messages */
+    flex-direction: column; /* Stack messages vertically */
+}
+
+.message-container {
+    display: flex;
+    margin-bottom: 15px;
+}
+
+.message {
+    padding: 10px 15px;
+    border-radius: 18px; /* More rounded corners */
+    max-width: 75%; /* Limit message width */
+    word-wrap: break-word; /* Break long words */
+    line-height: 1.4;
+}
+
+.user-message-container {
+    justify-content: flex-end; /* Align user messages to the right */
+}
+
+.bot-message-container {
+    justify-content: flex-start; /* Align bot messages to the left */
+}
+
+.user-message .message {
+    background-color: #0d6efd; /* Bootstrap primary blue */
+    color: white;
+    border-bottom-right-radius: 5px; /* Slightly different corner for bubble effect */
+}
+
+.bot-message .message {
+    background-color: #e9ecef; /* Lighter gray for bot */
+    color: #212529;
+    border-bottom-left-radius: 5px; /* Slightly different corner for bubble effect */
+}
+
+/* Simple avatar placeholder */
+.avatar {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    background-color: #adb5bd; /* Placeholder color */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 0.9rem;
+    flex-shrink: 0; /* Prevent avatar from shrinking */
+}
+.user-message-container .avatar {
+    margin-left: 10px;
+    background-color: #0a58ca; /* Darker blue for user avatar */
+}
+.bot-message-container .avatar {
+    margin-right: 10px;
+    background-color: #6c757d; /* Gray for bot avatar */
+}
+
+/* Style for the input group */
+#chatForm .form-control {
+    border-right: 0; /* Remove border between input and button */
+}
+#chatForm .btn {
+    border-left: 0; /* Remove border between input and button */
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+#chatForm .form-control:focus {
+    box-shadow: none; /* Remove focus glow */
+    border-color: #dee2e6;
+}
+
+/* Status message styling */
+#uploadStatus {
+    font-size: 0.9rem;
+    margin-top: 10px;
+}
+
+/* Loading spinner (hidden by default) */
+.spinner-container {
+    display: none; /* Hide initially */
+    justify-content: center;
+    padding: 15px;
+}

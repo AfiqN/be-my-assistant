@@ -77,9 +77,9 @@ def split_text_into_chunks(
     Args:
         text (str): The input text to be split.
         chunk_size (int): The maximum number of characters allowed in each chunk.
-                          Defaults to 1000.
+                          Defaults to 800.
         chunk_overlap (int): The number of characters that overlap between consecutive chunks.
-                             Helps maintain context. Defaults to 200.
+                             Helps maintain context. Defaults to 100.
 
     Returns:
         List[str]: A list of text chunks (strings). Returns an empty list if input text is empty.

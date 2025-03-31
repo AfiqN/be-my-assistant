@@ -27,6 +27,3 @@ class UploadSuccessResponse(BaseModel):
     filename: str            # The name of the file that was uploaded.
     message: str             # A confirmation message (e.g., "File processed successfully").
     chunks_added: Optional[int] = None # Optional: How many text chunks were added to the store.
-
-# Note: We often don't need a specific error schema, as FastAPI's
-# HTTPException handles returning standard JSON error responses.
