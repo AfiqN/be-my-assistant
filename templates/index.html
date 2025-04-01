@@ -3,104 +3,200 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-
+    <title>Be My Assistant - AI Customer Service</title>
+    
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- AOS Animation Library -->
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    
+    <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/css/style.css">
-
-    <title>Be My Assistant - RAG Chatbot</title>
-
   </head>
   <body>
-    <div class="container">
-        <div class="card main-content-card shadow-sm">
-            <div class="card-header text-center bg-light py-3">
-                 <h1 class="h4 mb-0"> <i class="bi bi-robot me-2"></i>Be My Assistant</h1>
-                 <p class="text-muted small mb-0">Ask questions about your PDF</p>
+    <div class="app-wrapper">
+      <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="app-sidebar">
+          <div class="sidebar-header">
+            <div class="logo-container">
+              <div class="logo-icon">
+                <i class="bi bi-headset"></i>
+              </div>
+              <div class="logo-text">
+                <h1>Be My<span>Assistant</span></h1>
+              </div>
             </div>
+          </div>
+          
+          <div class="sidebar-nav">
+            <ul class="nav-list">
+              <li class="nav-item">
+                <button class="nav-link active" id="switchToCustomerBtn">
+                  <i class="bi bi-person"></i>
+                  <span>Customer View</span>
+                </button>
+              </li>
+              <li class="nav-item">
+                <button class="nav-link" id="switchToAdminBtn">
+                  <i class="bi bi-person-gear"></i>
+                  <span>Admin View</span>
+                </button>
+              </li>
+              <li class="nav-item">
+                <button class="nav-link" id="aboutBtn">
+                  <i class="bi bi-info-circle"></i>
+                  <span>About Us</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+          
+          <div class="sidebar-footer">
+            <p>Powered by <span>AI Assistant Technology</span></p>
+          </div>
+        </aside>
 
-            <div class="card-body p-4">
-                <section id="upload-section" class="mb-4">
-                    <h2 class="h5 mb-3">1. Upload Document</h2>
+        <!-- Main Content Area -->
+        <main class="main-content">
+          <div class="content-header">
+            <h2 id="viewTitle">Customer View</h2>
+            <p class="subtitle" id="viewSubtitle">AI Powered Customer Service</p>
+          </div>
+          
+          <!-- Main Content Card -->
+          <div class="main-card">
+            <!-- Admin View -->
+            <section class="view-section" id="admin-view" style="display: none;">
+              <div class="section-header">
+                <h3><i class="bi bi-person-gear"></i> Admin Dashboard</h3>
+                <p class="text-muted">Upload documents containing company information to provide context for the AI Assistant.</p>
+              </div>
+              
+              <div class="section-content">
+                <div class="card upload-card mb-4">
+                  <div class="card-header">
+                    <h4><i class="bi bi-cloud-arrow-up"></i> Upload New Context</h4>
+                  </div>
+                  <div class="card-body">
                     <form id="uploadForm">
-                    <div class="input-group mb-3">
-                        <input class="form-control" type="file" id="fileInput" name="file" accept=".pdf" required>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-cloud-arrow-up-fill me-1"></i> Upload PDF
-                        </button>
-                    </div>
+                      <div class="file-drop-area mb-3">
+                        <span class="file-message">
+                          <i class="bi bi-file-earmark-pdf-fill"></i> 
+                          <span>Drag & drop PDF files (FAQ, Product Info, etc.) here or</span>
+                        </span>
+                        <input class="file-input" type="file" id="fileInput" name="file" accept=".pdf" required>
+                        <button type="button" class="browse-btn" id="browseBtn">Choose File</button>
+                      </div>
+                      <div class="selected-file mb-3" id="selectedFile" style="display: none;"></div>
+                      <button type="submit" class="btn btn-primary w-100" id="uploadBtn" disabled>
+                        <i class="bi bi-arrow-right-circle-fill"></i> Process & Add Context
+                      </button>
                     </form>
-                    <div id="uploadStatus">
-                        <!-- Status messages will appear here (e.g., "Uploading...", "Upload successful!", "Error: ...") -->
-                        <!-- Example: <div class="text-success"><i class="bi bi-check-circle-fill"></i> Document processed successfully.</div> -->
+                    <div id="uploadStatus" class="mt-3"></div>
+                  </div>
+                </div>
+                
+                <div class="card context-card">
+                  <div class="card-header">
+                    <h4><i class="bi bi-database"></i> Saved Context</h4>
+                  </div>
+                  <div class="card-body">
+                    <div class="context-list">
+                      <ul id="documentList" class="list-group">
+                        <li class="list-group-item text-muted"><em>No processed documents yet.</em></li>
+                      </ul>
                     </div>
-                </section>
-
-                <hr>
-
-                <section id="chat-section">
-                    <h2 class="h5 mb-3">2. Chat</h2>
-                    <div id="chatbox" class="border rounded mb-3 shadow-sm">
-                         <!-- Chat messages will appear here -->
-                         <div class="text-center text-muted p-3">
-                            <small>Upload a document and ask a question to start the chat.</small>
-                         </div>
-                         <!-- Example Messages -->
-                         <div class="message-container bot-message-container">
-                              <div class="avatar"><i class="bi bi-robot"></i></div>
-                              <div class="bot-message">
-                                  <div class="message">
-                                      Hello! Upload a PDF and I'll help answer questions about it.
-                                  </div>
-                              </div>
-                         </div>
-                         <!-- <div class="message-container user-message-container">
-                              <div class="user-message">
-                                  <div class="message">
-                                      What is the main topic of the document?
-                                  </div>
-                              </div>
-                               <div class="avatar"><i class="bi bi-person-fill"></i></div>
-                         </div> -->
-                         <!-- End Example Messages -->
-
-                        <!-- Loading Indicator Placeholder -->
-                        <div class="spinner-container" id="loadingIndicator">
-                            <div class="spinner-border text-primary spinner-border-sm" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                            <span class="ms-2 text-muted small">Assistant is thinking...</span>
-                        </div>
-
-                    </div>
-
-                    <form id="chatForm">
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="questionInput" placeholder="Ask a question about the document..." aria-label="Ask a question" required disabled> <!-- Start disabled -->
-                        <button class="btn btn-success" type="submit" id="sendButton" disabled> <!-- Start disabled -->
-                             <i class="bi bi-send-fill"></i>
-                             <span class="d-none d-sm-inline ms-1">Send</span>
-                        </button>
-                    </div>
-                    </form>
-                </section>
-            </div> <!-- End card-body -->
-
-             <div class="card-footer text-center text-muted small py-2">
-                 Powered by RAG Technology
-             </div>
-        </div> <!-- End main-content-card -->
-    </div> <!-- End container -->
-
-    <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+                  </div>
+                </div>
+              </div>
+            </section>
+            
+            <!-- Customer View -->
+            <section class="view-section active" id="customer-view">
+              <div class="chat-header">
+                <div>
+                  <h4><i class="bi bi-headset"></i> Virtual Assistant</h4>
+                  <span class="status-indicator"><i class="bi bi-circle-fill"></i> Online</span>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary" id="clearChatBtn">
+                  <i class="bi bi-trash"></i> Clear Chat
+                </button>
+              </div>
+              
+              <div id="chatbox" class="chatbox">
+                <div class="welcome-message">
+                  <div class="welcome-icon">
+                    <i class="bi bi-robot"></i>
+                  </div>
+                  <h3>Welcome!</h3>
+                  <p>How can I help you today?</p>
+                </div>
+                
+                <div id="loadingIndicator" class="typing-indicator-container">
+                  <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
+              </div>
+              
+              <form id="chatForm" class="chat-input-container">
+                <div class="chat-input-wrapper">
+                  <input 
+                    type="text" 
+                    id="questionInput" 
+                    placeholder="Type your question..." 
+                    aria-label="Ask a question" 
+                    required
+                  >
+                  <button class="send-btn" type="submit" id="sendButton">
+                    <i class="bi bi-send-fill"></i>
+                  </button>
+                </div>
+              </form>
+            </section>
+          </div>
+        </main>
+      </div>
+    </div>
     
-    <!-- Your Custom JavaScript (script.js) would go here -->
-    <script src="/static/js/script.js" defer></script>
+    <!-- About Modal -->
+    <div class="modal fade" id="aboutModal" tabindex="-1" aria-labelledby="aboutModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="aboutModalLabel">About Be My Assistant</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="text-center mb-4">
+              <i class="bi bi-headset display-4 text-primary"></i>
+            </div>
+            <p>Be My Assistant is an AI Customer Service solution designed to help your business.</p>
+            <p>Admins can provide context (company information, products, FAQs) in PDF format, and our AI will answer customer questions based on this context.</p>
+            <p>Powered by Retrieval Augmented Generation (RAG) technology.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <script src="/static/js/script.js" defer></script>
   </body>
 </html>

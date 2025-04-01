@@ -87,7 +87,7 @@ templates = Jinja2Templates(directory="templates")
 
 # --- Frontend Endpoint (Serves index.html) ---
 # We replace the old root endpoint with one that serves the HTML page.
-@app.get("/", tags=["Frontend", "general"], include_in_schema=False) # Use GET for web pages, exclude from OpenAPI docs
+@app.get("/", tags=["Frontend", "General"], include_in_schema=False) # Use GET for web pages, exclude from OpenAPI docs
 async def serve_index_page(request: Request):
     """
     Serves the main index.html page for the chatbot frontend.
