@@ -1,8 +1,8 @@
 import logging
 import os
-import tempfile # Using tempfile for better temporary file management
-import shutil   # For copying file contents
-from typing import Dict, Any, Optional # Added Optional for type hints
+import tempfile 
+import shutil   
+from typing import Dict, Any, Optional 
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request, status
 
@@ -10,7 +10,6 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from app.schemas import ChatRequest, ChatResponse, UploadSuccessResponse
 
 # Import core logic functions from sibling 'core' directory
-# Assuming 'app' is the root package recognized by the Python path
 from app.core.document_processor import load_pdf_text, split_text_into_chunks
 from app.core.vector_store_manager import embed_texts, add_texts_to_vector_store
 from app.core.rag_orchestrator import get_rag_response
@@ -25,41 +24,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # --- Dependency Injection Helpers ---
-# These functions allow FastAPI to inject shared resources (initialized at startup)
-# into our endpoint functions when requests are made.
-
 async def get_embedding_model(request: Request) -> Any:
-    """
-    Dependency function to retrieve the pre-loaded embedding model
-    from the application state.
-    """
-    # Access the model stored in app.state by the lifespan manager in main.py
-    model = request.app.state.embedding_model
+    """Retrieves the pre-loaded embedding model."""
+    model = getattr(request.app.state, 'embedding_model', None)
     if model is None:
-        logger.error("Embedding model requested but not found in app state. Was it initialized?")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Embedding model is not available."
-        )
+        logger.error("Dependency Error: Embedding model not available in app state.")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Embedding model is not ready.")
     return model
 
 async def get_vector_collection(request: Request) -> Any:
-    """
-    Dependency function to retrieve the pre-initialized vector store collection
-    from the application state.
-    """
-    # Access the collection stored in app.state by the lifespan manager in main.py
-    collection = request.app.state.vector_collection
+    """Retrieves the pre-initialized vector store collection."""
+    collection = getattr(request.app.state, 'vector_collection', None) 
     if collection is None:
-        logger.error("Vector collection requested but not found in app state. Was it initialized?")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Vector store collection is not available."
-        )
+        logger.error("Dependency Error: Vector collection not available in app state.")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Vector store is not ready.")
     return collection
 
 # --- API Endpoint Implementations ---
-
 @router.post(
     "/upload",
     response_model=UploadSuccessResponse,
@@ -68,7 +49,7 @@ async def get_vector_collection(request: Request) -> Any:
 )
 async def upload_document(
     *, # Use * to make following arguments keyword-only
-    file: UploadFile = File(..., description="The PDF document to upload."), # Use FastAPI's File for uploads
+    file: UploadFile = File(..., description="The PDF document to upload."),
     embedding_model: Any = Depends(get_embedding_model), # Inject embedding model
     vector_collection: Any = Depends(get_vector_collection) # Inject vector store collection
 ):
@@ -85,14 +66,11 @@ async def upload_document(
     logger.info(f"Received PDF file for upload: {file.filename}")
 
     # --- 2. Save File Temporarily ---
-    # Create a temporary directory managed by tempfile context manager
-    # This ensures cleanup even if errors occur.
-    temp_file_path: Optional[str] = None
+    temp_file_path: Optional[str] = "/tmp/dummy_path.pdf"
     try:
         # Create a temporary file within the configured temp directory
-        # We use mkstemp for a secure way to create a temp file path
         fd, temp_file_path = tempfile.mkstemp(suffix=".pdf", prefix="upload_", dir=settings.UPLOAD_TEMP_DIR)
-        os.close(fd) # Close the file descriptor as we'll open it in binary write mode
+        os.close(fd) 
 
         logger.info(f"Saving uploaded content to temporary file: {temp_file_path}")
         with open(temp_file_path, "wb") as buffer:
@@ -112,8 +90,8 @@ async def upload_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not save uploaded file for processing."
         )
+    
     finally:
-        # Always close the uploaded file object
         await file.close()
 
     # --- 3. Process the Document (Load, Split, Embed, Store) ---
@@ -135,7 +113,7 @@ async def upload_document(
         # Split the extracted text into manageable chunks
         logger.debug("Splitting text into chunks...")
         # Consider making chunk_size/overlap configurable via settings
-        text_chunks = split_text_into_chunks(document_text)
+        text_chunks = split_text_into_chunks(text=document_text)
 
         if not text_chunks:
             logger.warning(f"Text extracted, but splitting resulted in zero chunks for: {file.filename}")
@@ -176,7 +154,6 @@ async def upload_document(
             texts=text_chunks,
             embeddings=embeddings,
             metadatas=metadatas
-            # Optionally generate custom IDs: ids=[f"{file.filename}_{i}" for i in range(len(text_chunks))]
         )
 
         if not success:
@@ -226,7 +203,8 @@ async def upload_document(
 async def chat_with_rag(
     chat_request: ChatRequest, # Use the Pydantic schema for request body validation
     embedding_model: Any = Depends(get_embedding_model), # Inject dependencies
-    vector_collection: Any = Depends(get_vector_collection)
+    vector_collection: Any = Depends(get_vector_collection),
+    # cross_encoder_model: Optional[Any] = Depends(get_cross_encoder_model)
 ):
     """
     Endpoint to handle chat requests using the RAG pipeline.
@@ -248,10 +226,6 @@ async def chat_with_rag(
             question=question,
             embedding_model=embedding_model,
             vector_collection=vector_collection,
-            # Get LLM config from central settings
-            llm_model_name=settings.LLM_MODEL_NAME,
-            n_results=settings.RAG_NUM_RESULTS,
-            temperature=settings.RAG_TEMPERATURE
         )
 
         # --- 3. Handle Response/Errors from RAG ---
@@ -265,7 +239,6 @@ async def chat_with_rag(
         elif answer.startswith("Error:"):
             # If RAG returns a string starting with "Error:", treat it as an internal error
             logger.error(f"RAG orchestrator indicated an error for question '{question}': {answer}")
-            # You might want to return the specific error detail or a generic message
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 # detail=answer # Option 1: Return specific error

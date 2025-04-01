@@ -6,8 +6,6 @@ from typing import Optional
 
 # Import LangChain's ChatGoogleGenerativeAI and potentially message types later
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage # Although invoke handles strings
-from langchain_core.exceptions import OutputParserException # For potential future parsing
 
 from dotenv import load_dotenv
 
@@ -16,19 +14,14 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # --- LLM Interaction Function ---
-
-# Load environment variables globally for this module (or manage in a config module)
-# This ensures load_dotenv() runs once when the module is imported.
 load_dotenv()
 API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Configure the Google Generative AI SDK once
 if not API_KEY:
     logger.warning("GOOGLE_API_KEY not found in environment variables. LLM initialization might fail or require explicit key.")
-# Note: Unlike the direct SDK, configuration happens during model instantiation
 
-
-def invoke_llm_langchain(prompt: str, model_name: str = "gemini-1.5-flash", temperature: float = 0.7) -> Optional[str]:
+def invoke_llm_langchain(prompt: str, model_name: str = "gemini-2.0-flash", temperature: float = 0.7) -> Optional[str]:
     """
     Sends a prompt to the specified Google Generative AI model (Gemini) via LangChain
     and returns the response content.
@@ -36,7 +29,7 @@ def invoke_llm_langchain(prompt: str, model_name: str = "gemini-1.5-flash", temp
     Args:
         prompt (str): The input text prompt to send to the LLM.
         model_name (str): The name of the Gemini model to use (e.g., "gemini-pro", "gemini-1.5-flash").
-                          Defaults to "gemini-1.5-flash".
+                          Defaults to "gemini-2.0-flash".
         temperature (float): Controls the randomness of the output. Lower values (e.g., 0.2)
                              make the output more deterministic, higher values (e.g., 0.9)
                              make it more creative. Defaults to 0.7.
@@ -57,22 +50,16 @@ def invoke_llm_langchain(prompt: str, model_name: str = "gemini-1.5-flash", temp
 
     try:
         # 1. Initialize the LangChain ChatGoogleGenerativeAI model
-        #    The API key is passed directly here.
         llm = ChatGoogleGenerativeAI(
             model=model_name,
             google_api_key=API_KEY,
             temperature=temperature,
-            # You can add other parameters like top_p, top_k etc. here
         )
 
         # 2. Invoke the model using LangChain's standard interface
-        #    .invoke() can typically handle a string prompt directly,
-        #    which it wraps as a HumanMessage internally.
         response = llm.invoke(prompt)
 
         # 3. Extract the content from the response object
-        #    LangChain models usually return a message object (like AIMessage)
-        #    and the actual text is in the 'content' attribute.
         llm_output = response.content
 
         logger.info("LLM invocation successful via LangChain. Received response.")
@@ -84,31 +71,3 @@ def invoke_llm_langchain(prompt: str, model_name: str = "gemini-1.5-flash", temp
         logger.error(f"An error occurred during LangChain LLM interaction: {e}")
         # This could be due to invalid API key, network issues, model errors, etc.
         return None
-
-# --- Example Usage Block ---
-if __name__ == '__main__':
-    # This block runs only when the script is executed directly.
-    print("--- Testing LangChain LLM Interface ---")
-
-    # Ensure API key is available
-    if not API_KEY:
-        print("ERROR: GOOGLE_API_KEY not found in .env file or environment. Please set it.")
-    else:
-        # Define a simple test prompt
-        # test_prompt = "Explain what a Large Language Model is in simple terms."
-        test_prompt = "Sebutkan 3 ibukota negara di Asia Tenggara." # Example in Indonesian
-        # test_prompt = "What is the capital of France?"
-
-        print(f"\nSending prompt: \"{test_prompt}\"")
-
-        # Call the invoke_llm_langchain function (renamed for clarity)
-        response_text = invoke_llm_langchain(test_prompt, model_name="gemini-1.5-flash") # Using flash model
-
-        # Print the result
-        print("\n--- LLM Response (via LangChain) ---")
-        if response_text is not None: # Check explicitly for None
-            print(response_text)
-        else:
-            print("Failed to get a response from the LLM using LangChain.")
-
-    print("\n--- Test Complete ---")

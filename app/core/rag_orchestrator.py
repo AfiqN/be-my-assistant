@@ -3,17 +3,13 @@ from typing import Optional, List, Tuple, Any # Any for model types
 
 # Import functions and classes from other core modules
 from .vector_store_manager import (
-    initialize_embedding_model,    
-    initialize_vector_store,      
     query_vector_store
 )
 # Import LLM function from llm_interface
 from .llm_interface import invoke_llm_langchain
 
 from langchain_core.prompts import ChatPromptTemplate
-# No longer need StrOutputParser or RunnablePassthrough if LLM is called externally
-# from langchain_core.output_parsers import StrOutputParser
-# from langchain_core.runnables import RunnablePassthrough
+from app.config import settings
 
 # Access environment variables (still needed for API Key check)
 import os
@@ -23,28 +19,21 @@ from dotenv import load_dotenv
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- Configuration Constants ---
-DEFAULT_EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2" # As per your choice
-DEFAULT_LLM_MODEL = "gemini-1.5-flash" # Default LLM
-DEFAULT_VECTOR_STORE_PATH = "app/data/chroma_db" # Path to the main DB (not test)
-DEFAULT_COLLECTION_NAME = "documents"
-DEFAULT_N_RESULTS = 3 # Number of relevant documents to retrieve
-DEFAULT_LLM_TEMPERATURE = 0.7 # Adjust temperature for response consistency (was 0.5, changed to match previous code)
-
-# Load API Key (still useful for initial check)
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # --- Prompt Template Definition ---
+SYSTEM_PROMPT_TEMPLATE = """You are a friendly, precise, and helpful Customer Service assistant for 'Be My Assistant'.
+Your primary task is to answer the user's question based *exclusively* on the numbered context chunks provided below.
 
-# System prompt to set the LLM's persona and constraints
-SYSTEM_PROMPT_TEMPLATE = """You are a friendly and helpful Customer Service assistant for the 'Be My Assistant' project.
-Your primary task is to answer the user's question based *only* on the context provided below.
-Provide concise and direct answers based on the given information.
-If the context does not contain the information needed to answer the question, clearly state that you cannot answer based on the provided information or that the context does not contain the answer.
-Do not make up information or answer based on your general knowledge.
-Do not mention the existence of the context in your answer; just use the context to formulate the response.
-If the question is in Indonesian, answer in Indonesian. If the question is in English, answer in English.
+**Critical Instructions:**
+1.  **Use ONLY the Provided Context:** Your answer MUST be derived *solely* from the text within the '[Context n]' chunks. Do NOT use any prior knowledge or external information. It is absolutely critical that you do not add information not present in the context.
+2.  **Direct Answers:** Start your answer directly. Do NOT use introductory phrases like "Based on the context...", "According to the document...", etc.
+3.  **Answer Formatting:** If the answer involves listing items, features, or steps, use bullet points (*) for clarity. Otherwise, use concise sentences.
+4.  **Context Handling:** The relevant information is presented in numbered chunks, like '[Context 1]', '[Context 2]', etc. Synthesize information across chunks if necessary to provide a complete answer, but only use information present within those chunks.
+5.  **Language:** If the user's question is in Indonesian, answer in Indonesian. If the question is in English, answer in English.
+6.  **If Context is Insufficient:** If the provided context chunks do not contain the information needed to answer the question, respond *only* with: "Maaf, saya tidak dapat menemukan informasi tersebut dalam dokumen yang tersedia." (if the question was Indonesian) or "Sorry, I could not find that information in the available documents." (if the question was English). Do NOT try to guess or apologize further.
+
 ---
 Context:
 {context}
@@ -55,14 +44,12 @@ Context:
 HUMAN_PROMPT_TEMPLATE = "Question: {question}"
 
 # Combine into a ChatPromptTemplate
-# We can still use this to format the final prompt
 RAG_PROMPT = ChatPromptTemplate.from_messages([
     ("system", SYSTEM_PROMPT_TEMPLATE),
     ("human", HUMAN_PROMPT_TEMPLATE),
 ])
 
 # --- Helper Function for Formatting Retrieved Documents ---
-
 def format_docs(docs: Optional[List[Tuple[str, float]]]) -> str:
     """
     Formats the retrieved documents into a single string for the prompt context.
@@ -78,17 +65,13 @@ def format_docs(docs: Optional[List[Tuple[str, float]]]) -> str:
     if not docs:
         # Return in Bahasa Indonesia as per system prompt request for final answer language
         return "Tidak ada konteks relevan yang ditemukan dalam dokumen."
-    return "\n\n".join(doc[0] for doc in docs)
+    return "\n".join(doc[0] for doc in docs)
 
 # --- Core RAG Orchestration Function ---
-
 def get_rag_response(
     question: str,
     embedding_model: Any, # Expecting an initialized SentenceTransformer model
     vector_collection: Any, # Expecting an initialized Chroma Collection object
-    llm_model_name: str = DEFAULT_LLM_MODEL,
-    n_results: int = DEFAULT_N_RESULTS,
-    temperature: float = DEFAULT_LLM_TEMPERATURE
 ) -> Optional[str]:
     """
     Orchestrates the RAG pipeline: retrieves context, builds prompt, calls LLM via llm_interface.
@@ -96,10 +79,6 @@ def get_rag_response(
     Args:
         question (str): The user's input question.
         embedding_model (Any): The initialized sentence embedding model.
-        vector_collection (Any): The initialized vector store collection object.
-        llm_model_name (str): The name of the LLM model to use for generation (passed to llm_interface).
-        n_results (int): The number of relevant documents to retrieve.
-        temperature (float): The temperature setting for the LLM (passed to llm_interface).
 
     Returns:
         Optional[str]: The final answer generated by the LLM based on the context,
@@ -119,7 +98,7 @@ def get_rag_response(
             collection=vector_collection,
             query_text=question,
             embedding_model=embedding_model,
-            n_results=n_results
+            n_results=settings.RAG_NUM_RESULTS
         )
         if retrieved_docs is None:
              logger.warning("Vector store query returned None, assuming no results.")
@@ -135,32 +114,28 @@ def get_rag_response(
     logger.debug(f"Formatted context string (snippet): '{context_string[:200]}...'")
 
     # --- 3. Build Final Prompt ---
-    # We no longer initialize the LLM here.
-    # We use the prompt template to create the final prompt string.
     logger.debug("Step 3: Building final prompt for LLM...")
     try:
         # Format the prompt manually using the template and retrieved context
         final_prompt_string = RAG_PROMPT.format(context=context_string, question=question)
-        logger.debug(f"Final prompt ready to be sent to llm_interface (snippet): '{final_prompt_string[:250]}...'")
+        logger.debug(f"Final prompt ready to be sent to llm_interface (snippet): '...{final_prompt_string[250:]}'")
     except Exception as e:
          logger.error(f"Error formatting final prompt: {e}", exc_info=True)
          return "Error: Failed to build prompt for the language model."
 
     # --- 4. Call LLM via llm_interface ---
-    # Replaces local LLM initialization and call with the imported function
     logger.debug("Step 4: Calling LLM via llm_interface...")
     try:
         # Call the function from llm_interface.py
         final_answer = invoke_llm_langchain(
             prompt=final_prompt_string,
-            model_name=llm_model_name,
-            temperature=temperature
+            model_name=settings.LLM_MODEL_NAME,
+            temperature=settings.RAG_TEMPERATURE
         )
 
         # Check if llm_interface returned None (indicating an error there)
         if final_answer is None:
             logger.error("LLM call via llm_interface returned None.")
-            # You could return a more specific error if llm_interface provides one
             return "Error: Failed to get response from the language model (via llm_interface)."
 
         logger.info("Successfully called LLM via llm_interface and received answer.")
@@ -171,81 +146,4 @@ def get_rag_response(
     except Exception as e:
         # Catch unexpected errors during the call to invoke_llm_langchain
         logger.error(f"Unexpected error calling invoke_llm_langchain: {e}", exc_info=True)
-        return "Error: Failed to generate final answer due to LLM call issue."
-
-# --- Example Usage Block for Testing ---
-# This block doesn't need changes as it only calls get_rag_response
-# The internal changes in get_rag_response don't affect how it's called
-if __name__ == '__main__':
-    print("--- Testing RAG Orchestrator (with LLM via llm_interface) ---")
-
-    # --- 1. Initialize Required Components ---
-    print("\nInitializing components...")
-    # Embedding Model
-    test_embedding_model = initialize_embedding_model(DEFAULT_EMBEDDING_MODEL)
-    if not test_embedding_model:
-        print("FATAL: Failed to initialize embedding model. Exiting test.")
-        exit()
-    print(f"Embedding model ({DEFAULT_EMBEDDING_MODEL}) initialized.")
-
-    # Vector Store (Use TEST path here for consistency)
-    # IMPORTANT: Ensure the DB at test_db_path contains relevant data from vector_store_manager test
-    test_db_path = "app/data/chroma_db_test" # Same path as in vector_store_manager test
-    test_collection_name = "test_docs" # Same name as in vector_store_manager test
-    test_vector_collection = initialize_vector_store(test_db_path, test_collection_name)
-
-    if not test_vector_collection:
-        print(f"WARNING: Failed to initialize vector store at {test_db_path}. Test requires pre-populated data.")
-        # Optional: Add code here to populate test DB if empty
-        # For now, proceed assuming it might work if already populated.
-        # Or exit if critical
-        # exit()
-    elif test_vector_collection.count() == 0:
-         print(f"WARNING: Vector store collection '{test_collection_name}' at {test_db_path} is empty. RAG results will be based on no context.")
-         # Recommended to ensure data exists before full testing
-         # You can run the test in vector_store_manager.py first
-    else:
-        print(f"Vector store ({test_collection_name} at {test_db_path}) initialized. Count: {test_vector_collection.count()}")
-
-    # Check for LLM API Key before proceeding
-    if not GOOGLE_API_KEY:
-        print("FATAL: GOOGLE_API_KEY not found in .env. Cannot run LLM tests. Exiting test.")
-        exit()
-    print("LLM API Key found.")
-    print("Components initialized.")
-
-    # --- 2. Define Test Questions ---
-    # These questions should relate to the dummy data added in vector_store_manager.py test
-    test_questions = [
-        "Apa itu ChromaDB?",
-        "Ceritakan tentang sentence transformers.",
-        "Apa fungsi LangChain?",
-        "Hewan apa yang melompati anjing malas?", # Should be in dummy data
-        "Di mana anjing malas tidur?",           # Should be in dummy data
-        "Apa topik utama dokumen yang ada?",     # More general question
-        "Bagaimana cara kerja embedding?",       # Likely not in dummy data
-        "Jelaskan tentang RAG."                  # Likely not in dummy data
-    ]
-
-    # --- 3. Run RAG Pipeline for Each Question ---
-    print("\n--- Running RAG Queries ---")
-    for i, q in enumerate(test_questions):
-        print(f"\n--- Question {i+1} ---")
-        print(f"Question: {q}")
-
-        # Call the main RAG function
-        # Ensure the vector collection is passed, even if initialization warning occurred
-        if test_vector_collection: # Only call if collection was successfully initialized
-            answer = get_rag_response(
-                question=q,
-                embedding_model=test_embedding_model,
-                vector_collection=test_vector_collection, # Pass the collection object
-                llm_model_name=DEFAULT_LLM_MODEL,
-                n_results=DEFAULT_N_RESULTS,
-                temperature=DEFAULT_LLM_TEMPERATURE # Use default temperature
-            )
-            print(f"Answer: {answer}")
-        else:
-            print("Answer: Cannot process because vector store was not initialized.")
-
-    print("\n--- RAG Orchestrator Test Complete ---")
+        return "Error: Failed to generate final answer de to LLM call issue."

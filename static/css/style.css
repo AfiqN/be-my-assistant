@@ -665,8 +665,8 @@
     margin-bottom: 0.5rem;
     align-self: flex-start;
     order: 999; /* Ensure it appears at the end of the flex container */
-  }
-  
+    }
+
   
   .typing-indicator {
     background-color: var(--gray-100);

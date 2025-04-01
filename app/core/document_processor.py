@@ -96,8 +96,6 @@ def split_text_into_chunks(
         chunk_overlap=chunk_overlap,
         length_function=len, # Function to measure chunk length (standard len for characters)
         is_separator_regex=False, # Treat separators literally
-        # Common separators tried in order by RecursiveCharacterTextSplitter:
-        # ["\n\n", "\n", " ", ""]
     )
 
     # Perform the split operation
@@ -109,42 +107,3 @@ def split_text_into_chunks(
         logger.debug(f"First chunk preview: '{chunks[0][:100]}...'")
 
     return chunks
-
-# Example of how you might test this file directly (optional)
-if __name__ == '__main__':
-    # This block runs only when the script is executed directly (e.g., python app/core/document_processor.py)
-    # It's useful for quick tests but formal testing should be done via test scripts/frameworks.
-
-    # IMPORTANT: Create a dummy PDF file named 'sample.pdf' in the root directory
-    # or change the path below to an existing PDF file for this test to work.
-    test_pdf_path = 'sample.pdf' # Adjust path as needed
-
-    try:
-        print(f"--- Testing PDF Loading ---")
-        extracted_text = load_pdf_text(test_pdf_path)
-
-        if extracted_text:
-            print(f"Successfully loaded text. Length: {len(extracted_text)} chars.")
-            # print("\n--- First 500 Chars ---")
-            # print(extracted_text[:500])
-            # print("\n...")
-
-            print("\n--- Testing Text Splitting ---")
-            text_chunks = split_text_into_chunks(extracted_text, chunk_size=500, chunk_overlap=50)
-            print(f"Text split into {len(text_chunks)} chunks.")
-
-            if text_chunks:
-                print("\n--- First Chunk ---")
-                print(text_chunks[0])
-                print("\n--- Second Chunk (if exists) ---")
-                if len(text_chunks) > 1:
-                    print(text_chunks[1])
-                else:
-                    print("Only one chunk was created.")
-        else:
-            print("Could not extract text from the PDF or PDF was empty.")
-
-    except FileNotFoundError:
-        print(f"ERROR: Test PDF file not found at '{test_pdf_path}'. Please create it or change the path.")
-    except Exception as e:
-        print(f"An error occurred during testing: {e}")
