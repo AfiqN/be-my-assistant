@@ -4,14 +4,14 @@ import tempfile
 import shutil   
 from typing import Dict, Any, Optional 
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request, status
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request, status, Response, Path
 
 # Import defined Pydantic schemas
 from app.schemas import ChatRequest, ChatResponse, UploadSuccessResponse
 
 # Import core logic functions from sibling 'core' directory
 from app.core.document_processor import load_pdf_text, split_text_into_chunks
-from app.core.vector_store_manager import embed_texts, add_texts_to_vector_store
+from app.core.vector_store_manager import embed_texts, add_texts_to_vector_store, delete_documents_by_source
 from app.core.rag_orchestrator import get_rag_response
 
 # Import application settings instance
@@ -258,4 +258,57 @@ async def chat_with_rag(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected internal error occurred: {e}"
+        )
+    
+
+@router.delete(
+    "/delete_context/{filename}",
+    status_code=status.HTTP_204_NO_CONTENT, # Use 204 No Content for successful deletions
+    summary="Delete Context by Filename",
+    description="Deletes all vector store entries associated with the given source filename."
+)
+async def delete_context(
+    *, # Keyword-only arguments
+    filename: str = Path(..., description="The URL-encoded filename to delete context for."),
+    vector_collection: Any = Depends(get_vector_collection) # Inject vector store
+):
+    """
+    Endpoint to delete all documents/embeddings associated with a specific source filename.
+    """
+    logger.info(f"Received request to delete context for filename: {filename}")
+
+    # Basic validation
+    if not filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Filename cannot be empty."
+        )
+
+    try:
+        # Call the new deletion function from the vector store manager
+        success = delete_documents_by_source(
+            collection=vector_collection,
+            source_filename=filename # Pass the decoded filename
+        )
+
+        if not success:
+            # If the deletion function reported an issue (logged internally)
+            logger.error(f"Deletion failed for filename: {filename} in vector_store_manager.")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to delete context for filename '{filename}' from the vector store."
+            )
+
+        logger.info(f"Successfully processed deletion request for filename: {filename}")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    except HTTPException as http_exc:
+         # Re-raise known HTTP exceptions
+         raise http_exc
+    except Exception as e:
+        # Catch unexpected errors
+        logger.error(f"Unexpected error during context deletion for filename '{filename}': {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected internal error occurred while deleting context: {e}"
         )

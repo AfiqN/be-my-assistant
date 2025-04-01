@@ -202,3 +202,34 @@ def query_vector_store(
     except Exception as e:
         logger.error(f"An error occurred during vector store query: {e}")
         return None
+    
+def delete_documents_by_source(collection: Collection, source_filename: str) -> bool:
+    """
+    Deletes documents from the ChromaDB collection based on the 'source' metadata field.
+
+    Args:
+        collection (Collection): The initialized ChromaDB collection object.
+        source_filename (str): The filename stored in the 'source' metadata field
+                               of the documents to be deleted.
+
+    Returns:
+        bool: True if the deletion was attempted (ChromaDB's delete doesn't explicitly return success count easily),
+              False if the collection is not initialized or the filename is empty.
+              Logs errors if exceptions occur.
+    """
+    if not collection:
+        logger.error("ChromaDB collection is not initialized. Cannot delete documents.")
+        return False
+    if not source_filename:
+        logger.warning("Source filename is empty. Cannot delete.")
+        return False
+
+    logger.info(f"Attempting to delete documents with source='{source_filename}' from collection '{collection.name}'...")
+
+    try:
+        collection.delete(where={"source": source_filename})
+        logger.info(f"Deletion command issued for documents with source='{source_filename}'.")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to delete documents with source='{source_filename}' from ChromaDB: {e}", exc_info=True)
+        return False
