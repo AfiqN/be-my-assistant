@@ -656,20 +656,47 @@ document.addEventListener("DOMContentLoaded", function () {
       minute: "2-digit",
     });
 
+    marked.setOptions({
+      breaks: true, // Convert single line breaks to <br>
+      gfm: true, // Use GitHub Flavored Markdown
+    });
+    const rawHtml = marked.parse(text);
+
+    // Sanitize the HTML using DOMPurify to prevent XSS attacks
+    // Allow basic formatting tags likely used in Markdown (lists, bold, italics)
+    const cleanHtml = DOMPurify.sanitize(rawHtml, {
+      USE_PROFILES: { html: true }, // Allow basic HTML tags
+      ALLOWED_TAGS: [
+        "ul",
+        "ol",
+        "li",
+        "p",
+        "b",
+        "strong",
+        "i",
+        "em",
+        "br",
+        "a",
+      ], // Allow specific tags
+      ALLOWED_ATTR: ["href", "title", "target"], // Allow specific attributes for links
+    });
+
     messageDiv.innerHTML = `
-        <div class="message-avatar">
-          <i class="bi bi-robot"></i>
+      <div class="message-avatar">
+        <i class="bi bi-robot"></i>
+      </div>
+      <div class="message-content">
+        <div class="message-bubble">${cleanHtml}</div>
+        <div class="message-time">${time}</div>
+        <div class="message-actions">
+          <button class="message-action-btn copy-btn" title="Copy raw text" data-raw-text="${escapeHTML(
+            text
+          )}">
+            <i class="bi bi-clipboard"></i> Copy
+          </button>
         </div>
-        <div class="message-content">
-          <div class="message-bubble">${escapeHTML(text)}</div>
-          <div class="message-time">${time}</div>
-          <div class="message-actions">
-            <button class="message-action-btn copy-btn" title="Copy to clipboard">
-              <i class="bi bi-clipboard"></i> Copy
-            </button>
-          </div>
-        </div>
-      `;
+      </div>
+    `;
 
     // Remove welcome message if present
     if (welcomeMessage && chatbox.contains(welcomeMessage)) {
@@ -688,8 +715,9 @@ document.addEventListener("DOMContentLoaded", function () {
     // Add copy functionality
     const copyBtn = messageDiv.querySelector(".copy-btn");
     copyBtn.addEventListener("click", () => {
+      const rawTextToCopy = copyBtn.getAttribute("data-raw-text"); // Get raw text
       navigator.clipboard
-        .writeText(text)
+        .writeText(rawTextToCopy)
         .then(() => {
           const originalText = copyBtn.innerHTML;
           copyBtn.innerHTML = '<i class="bi bi-check"></i> Copied';
