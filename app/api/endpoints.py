@@ -204,12 +204,12 @@ async def chat_with_rag(
     chat_request: ChatRequest, # Use the Pydantic schema for request body validation
     embedding_model: Any = Depends(get_embedding_model), # Inject dependencies
     vector_collection: Any = Depends(get_vector_collection),
-    # cross_encoder_model: Optional[Any] = Depends(get_cross_encoder_model)
 ):
     """
     Endpoint to handle chat requests using the RAG pipeline.
     """
     question = chat_request.question
+    chat_history = chat_request.chat_history
     logger.info(f"Received chat request with question: '{question}'")
 
     # --- 1. Validate Input ---
@@ -226,6 +226,7 @@ async def chat_with_rag(
             question=question,
             embedding_model=embedding_model,
             vector_collection=vector_collection,
+            chat_history=chat_history
         )
 
         # --- 3. Handle Response/Errors from RAG ---

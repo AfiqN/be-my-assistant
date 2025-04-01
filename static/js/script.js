@@ -512,7 +512,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!question) return;
 
     if (AppState.chat.isLoading) return;
-
+    const currentChatHistory = AppState.chat.history.slice(0, -1); // Get history *before* the latest user message was added
     addUserMessage(question);
     questionInput.value = "";
 
@@ -530,10 +530,18 @@ document.addEventListener("DOMContentLoaded", function () {
     // Scroll to bottom to show the loading indicator
     scrollToBottom();
 
+    // Prepare data payload including history
+    const payload = {
+      question: question,
+      // Send history in the format expected by the backend schema (List[ChatMessage])
+      // The history array already contains objects like { role: 'user'/'assistant', content: '...' }
+      chat_history: currentChatHistory,
+    };
+
     fetch("/api/v1/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: question }),
+      body: JSON.stringify(payload),
     })
       .then((response) => {
         console.log("Customer: Chat fetch response received:", response.status);

@@ -3,17 +3,17 @@
 import logging
 import os
 from typing import Optional
+from typing import Optional, List, Dict, Union
 
 # Import LangChain's ChatGoogleGenerativeAI and potentially message types later
 from langchain_google_genai import ChatGoogleGenerativeAI
-
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from dotenv import load_dotenv
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- LLM Interaction Function ---
 load_dotenv()
 API_KEY = os.getenv("GOOGLE_API_KEY")
 
@@ -21,7 +21,11 @@ API_KEY = os.getenv("GOOGLE_API_KEY")
 if not API_KEY:
     logger.warning("GOOGLE_API_KEY not found in environment variables. LLM initialization might fail or require explicit key.")
 
-def invoke_llm_langchain(prompt: str, model_name: str = "gemini-2.0-flash", temperature: float = 0.7) -> Optional[str]:
+# --- LLM Interaction Function ---
+# Define a type alias for clarity
+MessageInputType = Union[str, List[BaseMessage], List[Dict[str, str]]]
+
+def invoke_llm_langchain(prompt_input: MessageInputType, model_name: str = "gemini-2.0-flash", temperature: float = 0.7) -> Optional[str]:
     """
     Sends a prompt to the specified Google Generative AI model (Gemini) via LangChain
     and returns the response content.
@@ -42,11 +46,11 @@ def invoke_llm_langchain(prompt: str, model_name: str = "gemini-2.0-flash", temp
     if not API_KEY:
         logger.error("Cannot invoke LLM: GOOGLE_API_KEY is not configured.")
         return None
-    if not prompt:
+    if not prompt_input:
         logger.warning("Cannot invoke LLM: Prompt is empty.")
         return None
-
-    logger.info(f"Invoking LLM via LangChain (Model: {model_name}, Temp: {temperature}) with prompt: '{prompt[:100]}...'")
+    
+    logger.info(f"Invoking LLM via LangChain (Model: {model_name}, Temp: {temperature}). Input type: {type(prompt_input)}")
 
     try:
         # 1. Initialize the LangChain ChatGoogleGenerativeAI model
@@ -56,8 +60,31 @@ def invoke_llm_langchain(prompt: str, model_name: str = "gemini-2.0-flash", temp
             temperature=temperature,
         )
 
+        # Convert input if it's a list of dicts to LangChain messages
+        if isinstance(prompt_input, list) and all(isinstance(m, dict) for m in prompt_input):
+             messages: List[BaseMessage] = []
+             for msg_dict in prompt_input:
+                 role = msg_dict.get("role", "").lower()
+                 content = msg_dict.get("content", "")
+                 if role == "user" or role == "human":
+                     messages.append(HumanMessage(content=content))
+                 elif role == "assistant" or role == "ai":
+                     messages.append(AIMessage(content=content))
+                 elif role == "system":
+                      messages.append(SystemMessage(content=content))
+                 else:
+                     logger.warning(f"Unsupported role '{role}' in message dict, skipping.")
+             prompt_to_send = messages
+             logger.debug(f"Converted message dict list to {len(prompt_to_send)} LangChain messages.")
+        elif isinstance(prompt_input, str) or isinstance(prompt_input, list):
+             # Assume it's already a string or list of BaseMessage
+             prompt_to_send = prompt_input
+        else:
+             logger.error(f"Unsupported prompt_input type: {type(prompt_input)}")
+             return None
+
         # 2. Invoke the model using LangChain's standard interface
-        response = llm.invoke(prompt)
+        response = llm.invoke(prompt_to_send)
 
         # 3. Extract the content from the response object
         llm_output = response.content

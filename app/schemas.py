@@ -1,7 +1,11 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict # Add List and Dict
 
 # --- Chat Endpoint Schemas ---
+class ChatMessage(BaseModel):
+    """Represents a single message in the chat history."""
+    role: str # 'user' or 'assistant'
+    content: str
 
 class ChatRequest(BaseModel):
     """
@@ -9,6 +13,7 @@ class ChatRequest(BaseModel):
     when a user sends a question to the /chat endpoint.
     """
     question: str # The user's question as a string.
+    chat_history: Optional[List[ChatMessage]] = None # Add chat history field
 
 class ChatResponse(BaseModel):
     """
