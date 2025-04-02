@@ -1,5 +1,7 @@
 import logging
 import os
+import io
+import mimetypes # Add this
 import tempfile 
 import shutil   
 from typing import Dict, Any, Optional 
@@ -10,7 +12,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from app.schemas import ChatRequest, ChatResponse, UploadSuccessResponse
 
 # Import core logic functions from sibling 'core' directory
-from app.core.document_processor import load_pdf_text, split_text_into_chunks
+from app.core.document_processor import load_document, split_text_into_chunks
 from app.core.vector_store_manager import embed_texts, add_texts_to_vector_store, delete_documents_by_source
 from app.core.rag_orchestrator import get_rag_response
 
@@ -40,16 +42,24 @@ async def get_vector_collection(request: Request) -> Any:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Vector store is not ready.")
     return collection
 
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "text/plain",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document", # .docx
+    "text/markdown",
+    "text/x-markdown",
+}
+
 # --- API Endpoint Implementations ---
 @router.post(
     "/upload",
     response_model=UploadSuccessResponse,
     summary="Upload and Process PDF Document",
-    description="Accepts a PDF file, extracts text, generates embeddings, and stores them in the vector database."
+    description="Accepts PDF, TXT, DOCX, or MD files, extracts text, generates embeddings, and stores them."
 )
 async def upload_document(
     *, # Use * to make following arguments keyword-only
-    file: UploadFile = File(..., description="The PDF document to upload."),
+    file: UploadFile = File(..., description="The document (PDF, TXT, DOCX, MD) to upload."),
     embedding_model: Any = Depends(get_embedding_model), # Inject embedding model
     vector_collection: Any = Depends(get_vector_collection) # Inject vector store collection
 ):
@@ -57,138 +67,130 @@ async def upload_document(
     Endpoint to upload, process, and store a PDF document.
     """
     # --- 1. Validate File Type ---
-    if file.content_type != "application/pdf":
-        logger.warning(f"Upload failed: Invalid file type '{file.content_type}' for file '{file.filename}'.")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid file type. Only PDF files are accepted."
-        )
-    logger.info(f"Received PDF file for upload: {file.filename}")
+    content_type = file.content_type
+    
+    if content_type not in ALLOWED_MIME_TYPES:
+         guessed_type, _ = mimetypes.guess_type(file.filename)
+         if guessed_type in ALLOWED_MIME_TYPES:
+             content_type = guessed_type
+             logger.info(f"Using guessed content type '{content_type}' for file '{file.filename}'.")
+         else:
+              logger.warning(f"Upload failed: Invalid or unsupported file type '{file.content_type}' or guessed type '{guessed_type}' for file '{file.filename}'. Allowed: {ALLOWED_MIME_TYPES}")
+              raise HTTPException(
+                  status_code=status.HTTP_400_BAD_REQUEST,
+                  detail=f"Invalid file type. Allowed types: PDF, TXT, DOCX, MD."
+              )
+    logger.info(f"Received file for upload: {file.filename} (Type: {content_type})")
 
-    # --- 2. Save File Temporarily ---
-    temp_file_path: Optional[str] = "/tmp/dummy_path.pdf"
+
+    # --- 2. Read File Content into Memory (as BytesIO stream) ---
+    file_content_stream: Optional[io.BytesIO] = None
     try:
-        # Create a temporary file within the configured temp directory
-        fd, temp_file_path = tempfile.mkstemp(suffix=".pdf", prefix="upload_", dir=settings.UPLOAD_TEMP_DIR)
-        os.close(fd) 
-
-        logger.info(f"Saving uploaded content to temporary file: {temp_file_path}")
-        with open(temp_file_path, "wb") as buffer:
-            # Copy the contents of the uploaded file to the temporary file
-            shutil.copyfileobj(file.file, buffer)
-        logger.debug(f"Temporary file saved successfully: {temp_file_path}")
+         # Read the entire file content into a BytesIO stream
+         content_bytes = await file.read()
+         file_content_stream = io.BytesIO(content_bytes)
+         logger.debug(f"File content read into memory stream ({len(content_bytes)} bytes).")
 
     except Exception as e:
-        logger.error(f"Failed to save uploaded file temporarily: {e}", exc_info=True)
-        # Clean up temp file if it was created before error
-        if temp_file_path and os.path.exists(temp_file_path):
-             try:
-                 os.remove(temp_file_path)
-             except OSError:
-                 logger.error(f"Could not clean up temp file during save error: {temp_file_path}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not save uploaded file for processing."
-        )
-    
+         logger.error(f"Failed to read uploaded file content into memory: {e}", exc_info=True)
+         raise HTTPException(
+             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+             detail="Could not read uploaded file content."
+         )
     finally:
-        await file.close()
+         await file.close()
 
     # --- 3. Process the Document (Load, Split, Embed, Store) ---
     total_chunks_added = 0
+    processed_source = file.filename # Default identifier
     try:
-        # Load text from the temporary PDF file
-        logger.debug(f"Loading text from {temp_file_path}")
-        document_text = load_pdf_text(temp_file_path)
+        # Load text using the new dispatcher function, passing the stream and type
+        logger.debug(f"Loading text using load_document for: {file.filename}")
+        load_result = load_document(
+             content_source=file.filename, # Pass filename for identification/guessing
+             content_type=content_type,
+             file_stream=file_content_stream
+        )
 
-        if not document_text:
-            logger.warning(f"No text could be extracted from PDF: {file.filename}")
-            # Return success, indicating 0 chunks were added
-            return UploadSuccessResponse(
-                filename=file.filename,
-                message="File processed, but no text content was found or extracted.",
-                chunks_added=0
+        if load_result is None:
+            logger.warning(f"Failed to load or extract text from file: {file.filename}")
+            raise HTTPException(
+                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, # Use 422 for processing errors
+                 detail="Could not extract text content from the uploaded file."
             )
+
+        document_text, processed_source = load_result
+        if not document_text:
+             logger.warning(f"No text content extracted from file: {processed_source}")
+             return UploadSuccessResponse(
+                 filename=processed_source,
+                 message="File processed, but no text content was found or extracted.",
+                 chunks_added=0
+             )
 
         # Split the extracted text into manageable chunks
         logger.debug("Splitting text into chunks...")
-        # Consider making chunk_size/overlap configurable via settings
         text_chunks = split_text_into_chunks(text=document_text)
 
         if not text_chunks:
-            logger.warning(f"Text extracted, but splitting resulted in zero chunks for: {file.filename}")
+            logger.warning(f"Text extracted, but splitting resulted in zero chunks for: {processed_source}")
             return UploadSuccessResponse(
-                filename=file.filename,
-                message="File processed and text extracted, but no chunks were generated after splitting.",
+                filename=processed_source,
+                message="File processed and text extracted, but no chunks were generated.",
                 chunks_added=0
             )
         logger.info(f"Document split into {len(text_chunks)} chunks.")
 
-        # Generate embeddings for the text chunks using the injected model
-        logger.debug("Generating embeddings for text chunks...")
+        # Generate embeddings
+        logger.debug("Generating embeddings...")
         embeddings = embed_texts(text_chunks, embedding_model)
 
-        if embeddings is None: # Check if embedding failed
-            logger.error(f"Embedding generation failed for file: {file.filename}")
+        if embeddings is None or not embeddings:
+            logger.error(f"Embedding generation failed or yielded no results for file: {processed_source}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to generate text embeddings for the document."
-            )
-        if not embeddings: # Check for empty list if chunks existed but embedding yielded nothing
-            logger.warning(f"Embedding process resulted in zero embeddings for: {file.filename}")
-            return UploadSuccessResponse(
-                 filename=file.filename,
-                 message="File processed, chunks generated, but failed to create embeddings.",
-                 chunks_added=0
+                detail="Failed to generate or obtain text embeddings for the document."
             )
         logger.info("Embeddings generated successfully.")
 
-        # Add the text chunks and their embeddings to the vector store
-        logger.debug("Adding text chunks and embeddings to the vector store...")
-        # Create simple metadata indicating the source file
-        metadatas = [{'source': file.filename} for _ in text_chunks]
-
-        # Call the function to add data to the injected vector collection
+        # Add to vector store
+        logger.debug("Adding chunks and embeddings to the vector store...")
+        metadatas = [{'source': processed_source} for _ in text_chunks]
         success = add_texts_to_vector_store(
             collection=vector_collection,
             texts=text_chunks,
             embeddings=embeddings,
             metadatas=metadatas
+            # IDs will be auto-generated by the function
         )
 
         if not success:
-            logger.error(f"Failed to add document chunks to vector store for file: {file.filename}")
+            logger.error(f"Failed to add document chunks to vector store for file: {processed_source}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to store document chunks in the vector database."
             )
 
         total_chunks_added = len(text_chunks)
-        logger.info(f"Successfully processed and stored {total_chunks_added} chunks from {file.filename}.")
+        logger.info(f"Successfully processed and stored {total_chunks_added} chunks from {processed_source}.")
 
     except HTTPException as http_exc:
-        # If an HTTPException was raised intentionally, re-raise it
-        raise http_exc
+        raise http_exc # Re-raise intentional HTTP exceptions
     except Exception as e:
-        # Catch any other unexpected errors during processing
-        logger.error(f"Unexpected error processing document {file.filename}: {e}", exc_info=True)
+        logger.error(f"Unexpected error processing document {processed_source}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An internal server error occurred while processing the document: {e}"
+            detail=f"An internal server error occurred: {e}"
         )
     finally:
-        # --- 4. Clean up the temporary file ---
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.remove(temp_file_path)
-                logger.info(f"Cleaned up temporary file: {temp_file_path}")
-            except OSError as e:
-                # Log error but don't necessarily fail the request if cleanup fails
-                logger.error(f"Error removing temporary file {temp_file_path}: {e}")
+        # Clean up the in-memory stream
+        if file_content_stream:
+            file_content_stream.close()
+            logger.debug("Closed in-memory file stream.")
 
-    # --- 5. Return Success Response ---
+    # --- 4. Return Success Response ---
     return UploadSuccessResponse(
-        filename=file.filename,
+        filename=processed_source,
         message="Document processed and added to vector store successfully.",
         chunks_added=total_chunks_added
     )

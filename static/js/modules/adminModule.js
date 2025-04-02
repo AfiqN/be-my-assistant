@@ -77,20 +77,41 @@ const AdminModule = {
       const file = fileInput.files[0];
       console.log("Admin: File selected:", file.name, file.type);
 
-      if (file.type !== "application/pdf") {
-        this.showAdminStatus("Please upload a PDF document.", "error");
-        fileInput.value = "";
+      const allowedTypes = [
+        "application/pdf",
+        "text/plain",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+        "text/markdown",
+        "text/x-markdown", // Some systems use this for .md
+      ];
+
+      const fileExtension = file.name.split(".").pop().toLowerCase();
+      const allowedExtensions = ["pdf", "txt", "docx", "md"];
+
+      if (
+        !allowedTypes.includes(file.type) &&
+        !allowedExtensions.includes(fileExtension)
+      ) {
+        console.log(
+          "Admin: Invalid file type or extension.",
+          file.type,
+          fileExtension
+        );
+        this.showAdminStatus(
+          "Please upload a supported document (PDF, TXT, DOCX, MD).",
+          "error"
+        );
+        fileInput.value = ""; // Clear the input
         selectedFileDiv.innerHTML = "";
         selectedFileDiv.style.display = "none";
         this.AppState.admin.currentFile = null;
         uploadBtn.disabled = true;
-        console.log("Admin: Invalid file type.");
         return;
       }
 
       this.AppState.admin.currentFile = file;
       selectedFileDiv.innerHTML = `
-          <i class="bi bi-file-earmark-pdf-fill"></i> 
+          <i class="bi bi-file-earmark-text-fil"></i> 
           ${escapeHTML(file.name)} (${formatFileSize(file.size)})
         `;
       selectedFileDiv.style.display = "flex";

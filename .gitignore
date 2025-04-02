@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 sample.pdf
+sample.txt
 chroma_db_test/
 chroma.sqlite3
 chroma_db/
