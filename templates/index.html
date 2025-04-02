@@ -274,9 +274,25 @@
       crossorigin="anonymous"
     ></script>
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
-    <script src="/static/js/script.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
-  </body>
+
+    <!-- Import map for ES modules -->
+    <script type="importmap">
+      {
+        "imports": {
+          "/static/js/modules/appState.js": "/static/js/modules/appState.js",
+          "/static/js/modules/elements.js": "/static/js/modules/elements.js",
+          "/static/js/modules/viewManager.js": "/static/js/modules/viewManager.js",
+          "/static/js/modules/adminModule.js": "/static/js/modules/adminModule.js",
+          "/static/js/modules/chatModule.js": "/static/js/modules/chatModule.js",
+          "/static/js/modules/apiService.js": "/static/js/modules/apiService.js",
+          "/static/js/utils.js": "/static/js/utils.js"
+        }
+      }
+    </script>
+
+    <!-- Main script as a module -->
+    <script type="module" src="/static/js/main.js"></script>
 </html>
+
