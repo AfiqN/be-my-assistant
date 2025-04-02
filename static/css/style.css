@@ -952,6 +952,78 @@ a:hover {
   }
 }
 
+.context-chunk-item {
+  /* Bisa ditambahkan style khusus jika perlu */
+  position: relative; /* Untuk positioning tombol jika diperlukan */
+}
+
+.toggle-content-btn {
+  font-size: 0.8rem; /* Ukuran tombol */
+  padding: 0.15rem 0.4rem;
+  line-height: 1.2;
+  /* Atur posisi jika tumpang tindih, contoh:
+     position: absolute;
+     top: 0.5rem;
+     right: 0.5rem;
+  */
+}
+
+.full-content-container {
+  margin-top: 0.75rem; /* Jarak dari preview */
+  max-width: 100%; /* Pastikan tidak overflow horizontal */
+}
+
+.context-preview {
+  color: var(--text-secondary); /* Make preview text slightly dimmer */
+}
+
+/* Style the container for the full text inside the collapse */
+.context-full-text {
+  white-space: pre-wrap; /* Preserve line breaks and wrap text */
+  word-wrap: break-word; /* Break long words */
+  max-height: 250px; /* Limit the height */
+  overflow-y: auto; /* Add vertical scrollbar if needed */
+  font-size: 0.875em; /* Slightly smaller font */
+  background-color: #f8f9fa !important; /* Light background */
+  border: 1px solid #dee2e6 !important; /* Subtle border */
+  color: #495057; /* Dark grey text for readability */
+  border-radius: var(--border-radius-sm);
+}
+
+/* Style the toggle button */
+.retrieved-chunks-list .btn-link {
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.retrieved-chunks-list .btn-link .bi {
+  /* Style icons in button */
+  vertical-align: text-bottom;
+  margin-right: 0.2rem;
+}
+
+.retrieved-chunks-list .list-group-item {
+  /* Add some padding at the bottom */
+  padding-bottom: 1rem;
+}
+
+/* Optional: Custom scrollbar for the full text box (Webkit browsers) */
+.context-full-text::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.context-full-text::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+.context-full-text::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 10px;
+}
+.context-full-text::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
 @media (max-width: 576px) {
   :root {
     --sidebar-width: 60px;

@@ -1,16 +1,17 @@
 import logging
-from typing import Optional, List, Tuple, Any # Any for model types
+from typing import Optional, List, Tuple, Any, Dict
 
 # Import functions and classes from other core modules
 from .vector_store_manager import (
-    query_vector_store
+    query_vector_store,
+    embed_texts
 )
 # Import LLM function from llm_interface
 from .llm_interface import invoke_llm_langchain
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate
 from app.config import settings
-from app.schemas import ChatMessage
+from app.schemas import ChatMessage, RetrievedChunkInfo
 
 # Access environment variables (still needed for API Key check)
 import os
@@ -71,7 +72,54 @@ def format_docs(docs: Optional[List[Tuple[str, float]]]) -> str:
     if not docs:
         # Provide a neutral indicator for the LLM, not user-facing
         return "No relevant context was found in the documents."
-    return "\n\n---\n\n".join(doc[0] for doc in docs)
+    return "\n".join(doc[0] for doc in docs)
+
+
+def get_preview_llm_response(
+    question: str,
+    context_string: str,
+) -> Optional[str]:
+    """
+    Generates a draft LLM response based ONLY on the provided context string and question.
+    Uses a simplified prompt template for this purpose.
+    """
+    if not GOOGLE_API_KEY:
+        logger.error("Cannot proceed with preview LLM call: GOOGLE_API_KEY is not configured.")
+        return "Error: LLM API Key is not configured."
+
+    if not question:
+        return "Error: Question is empty."
+    if not context_string:
+         # If no context was retrieved, we can't generate an answer based on it
+         return "No relevant context snippets were found to generate a draft answer."
+
+    logger.debug("Generating draft LLM response for admin preview...")
+
+    try:
+         # Format the prompt using the specific Admin Preview template
+         messages = RAG_PROMPT.format_messages(
+             context=context_string,
+             question=question
+         )
+
+         # Call the LLM via the standard interface, but with the preview prompt
+         draft_answer = invoke_llm_langchain(
+             prompt_input=messages,
+             model_name=settings.LLM_MODEL_NAME,
+             temperature=settings.RAG_TEMPERATURE # Use same temp for consistency, or maybe lower?
+         )
+
+         if draft_answer is None:
+             logger.error("Preview LLM call returned None.")
+             return "Error: Failed to get response from the language model for preview."
+
+         logger.debug(f"Draft Answer (snippet): '{draft_answer[:100]}...'")
+         return draft_answer
+
+    except Exception as e:
+         logger.error(f"Error generating preview LLM response: {e}", exc_info=True)
+         return f"Error: Failed to generate draft answer - {e}"
+
 
 # --- Core RAG Orchestration Function ---
 def get_rag_response(
@@ -171,3 +219,90 @@ def get_rag_response(
         # Catch unexpected errors during the call to invoke_llm_langchain
         logger.error(f"Unexpected error calling invoke_llm_langchain: {e}", exc_info=True)
         return "Error: Failed to generate final answer de to LLM call issue."
+    
+def get_admin_preview(
+    question: str,
+    embedding_model: Any,
+    vector_collection: Any,
+) -> Optional[Tuple[List[RetrievedChunkInfo], str]]:
+    """
+    Handles the logic for the admin preview: retrieve chunks, get draft answer.
+    """
+    logger.info(f"Admin Preview request. Question: '{question}'")
+
+    if not GOOGLE_API_KEY:
+        logger.error("Cannot proceed with Admin Preview: GOOGLE_API_KEY is not configured.")
+        # Return an error tuple structure expected by the endpoint
+        return ([], "Error: LLM API Key is not configured.")
+
+    retrieved_chunk_info: List[RetrievedChunkInfo] = []
+    draft_answer = "Error: Preview generation failed." # Default error message
+
+    # --- 1. Retrieve Relevant Documents (including metadata) ---
+    logger.debug("Admin Preview Step 1: Querying vector store...")
+    retrieved_docs_with_meta: Optional[List[Tuple[Any, float, Dict]]] = None
+    try:
+        query_embedding = embed_texts([question], embedding_model)
+        if not query_embedding:
+             raise ValueError("Failed to generate query embedding.")
+
+        query_results = vector_collection.query(
+            query_embeddings=query_embedding,
+            n_results=settings.RAG_NUM_RESULTS,
+            include=['documents', 'distances', 'metadatas'] # Crucial: include metadatas
+        )
+
+        if query_results and query_results.get('ids') and query_results['ids'][0]:
+            docs_content = query_results['documents'][0]
+            distances = query_results['distances'][0]
+            metadatas = query_results['metadatas'][0] if query_results.get('metadatas') else [{}] * len(docs_content)
+            if len(metadatas) != len(docs_content):
+                 metadatas = [{}] * len(docs_content) # Fallback
+
+            retrieved_docs_with_meta = list(zip(docs_content, distances, metadatas))
+            logger.info(f"Admin Preview: Retrieved {len(retrieved_docs_with_meta)} documents with metadata.")
+
+            # Process into RetrievedChunkInfo schema
+            for content, dist, meta in retrieved_docs_with_meta:
+                 preview_text = content[:150] + "..." if len(content) > 150 else content # Buat preview
+                 source_name = meta.get('source', 'Unknown Source') if meta else 'Unknown Source'
+                 retrieved_chunk_info.append(RetrievedChunkInfo(
+                     source=source_name,
+                     content_preview=preview_text,
+                     full_content=content,
+                     distance=dist
+                 ))
+        else:
+            logger.info("Admin Preview: Query returned no results.")
+            retrieved_docs_with_meta = [] # Ensure it's an empty list
+
+    except Exception as e:
+        logger.error(f"Admin Preview Error: Failed during vector store query: {e}", exc_info=True)
+        # Return current state (potentially empty list) and an error message
+        return (retrieved_chunk_info, f"Error: Failed to retrieve context information - {e}")
+
+    # --- 2. Format Context for Preview LLM ---
+    logger.debug("Admin Preview Step 2: Formatting context for LLM...")
+    # Format only the text content for the LLM prompt
+    context_string_for_llm = format_docs([(doc[0], doc[1]) for doc in retrieved_docs_with_meta]) if retrieved_docs_with_meta else format_docs(None)
+
+    # --- 3. Generate Draft Answer using Preview LLM ---
+    logger.debug("Admin Preview Step 3: Generating draft answer...")
+    try:
+         draft_answer = get_preview_llm_response(
+             question=question,
+             context_string=context_string_for_llm
+         )
+         if draft_answer is None or draft_answer.startswith("Error:"):
+             logger.error(f"Admin Preview: Failed to get draft answer from LLM. Reason: {draft_answer}")
+             # Keep the error message in draft_answer
+             if draft_answer is None: draft_answer = "Error: LLM generation failed for preview."
+         else:
+              logger.info("Admin Preview: Successfully generated draft answer.")
+
+    except Exception as e:
+         logger.error(f"Admin Preview Error: Failed during draft answer generation: {e}", exc_info=True)
+         draft_answer = f"Error: Failed to generate draft answer - {e}"
+
+    # --- 4. Return Results ---
+    return (retrieved_chunk_info, draft_answer)

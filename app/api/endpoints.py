@@ -8,13 +8,15 @@ from typing import Dict, Any, Optional
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request, status, Response, Path
 
-# Import defined Pydantic schemas
-from app.schemas import ChatRequest, ChatResponse, UploadSuccessResponse
+from app.schemas import ( # Group imports
+    ChatRequest, ChatResponse, UploadSuccessResponse,
+    AdminPreviewRequest, AdminPreviewResponse, RetrievedChunkInfo # Added Admin schemas
+)
 
 # Import core logic functions from sibling 'core' directory
 from app.core.document_processor import load_document, split_text_into_chunks
 from app.core.vector_store_manager import embed_texts, add_texts_to_vector_store, delete_documents_by_source
-from app.core.rag_orchestrator import get_rag_response
+from app.core.rag_orchestrator import get_rag_response, get_admin_preview
 
 # Import application settings instance
 from app.config import settings
@@ -82,6 +84,24 @@ async def upload_document(
               )
     logger.info(f"Received file for upload: {file.filename} (Type: {content_type})")
 
+
+    filename_to_process = file.filename
+    logger.info(f"Attempting to delete existing context for: {filename_to_process}")
+    try:
+        delete_success = delete_documents_by_source(
+            collection=vector_collection,
+            source_filename=filename_to_process
+        )
+        if not delete_success:
+            # Log error tapi tetap lanjutkan (mungkin file belum pernah ada)
+            logger.warning(f"Could not ensure deletion of old context for {filename_to_process}, proceeding with upload.")
+        else:
+            logger.info(f"Successfully issued deletion command for old context of {filename_to_process}.")
+    except Exception as delete_exc:
+        logger.error(f"Error during pre-upload deletion for {filename_to_process}: {delete_exc}", exc_info=True)
+        # Pertimbangkan apakah akan menghentikan proses atau melanjutkan
+        # Untuk sekarang, kita log error dan lanjutkan
+        logger.warning(f"Proceeding with upload despite error during pre-deletion for {filename_to_process}.")
 
     # --- 2. Read File Content into Memory (as BytesIO stream) ---
     file_content_stream: Optional[io.BytesIO] = None
@@ -314,4 +334,73 @@ async def delete_context(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected internal error occurred while deleting context: {e}"
+        )
+    
+@router.post(
+    "/admin/preview_context",
+    response_model=AdminPreviewResponse,
+    summary="Admin Context Preview",
+    description="Allows admin to test a question and see retrieved context chunks and the draft AI answer based *only* on those chunks."
+)
+async def preview_context(
+    preview_request: AdminPreviewRequest,
+    embedding_model: Any = Depends(get_embedding_model),
+    vector_collection: Any = Depends(get_vector_collection),
+):
+    """
+    Endpoint for admin context preview functionality.
+    """
+    question = preview_request.question
+    logger.info(f"Received admin preview request for question: '{question}'")
+
+    if not question:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question cannot be empty for preview."
+        )
+
+    try:
+        # Call the dedicated admin preview function from the orchestrator
+        preview_result = get_admin_preview(
+            question=question,
+            embedding_model=embedding_model,
+            vector_collection=vector_collection,
+        )
+
+        if preview_result is None:
+            # Should ideally not happen if get_admin_preview handles errors, but good practice
+            logger.error(f"Admin preview orchestrator returned None for question: '{question}'")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to generate preview due to an internal error in the RAG process."
+            )
+
+        # Unpack the result tuple
+        retrieved_chunks, draft_answer = preview_result
+
+        # Check if the draft_answer indicates an error occurred during preview generation
+        if draft_answer.startswith("Error:"):
+            logger.error(f"Admin preview generation indicated an error for question '{question}': {draft_answer}")
+            # Return the retrieved chunks (if any) but include the error in the draft answer field
+            return AdminPreviewResponse(
+                retrieved_chunks=retrieved_chunks,
+                draft_answer=draft_answer # Pass the error message through
+            )
+
+        # Return successful preview response
+        logger.info(f"Successfully generated admin preview for question: '{question}'")
+        return AdminPreviewResponse(
+            retrieved_chunks=retrieved_chunks,
+            draft_answer=draft_answer
+        )
+
+    except HTTPException as http_exc:
+         # Re-raise HTTPExceptions
+         raise http_exc
+    except Exception as e:
+        # Catch any other unexpected errors during the preview process
+        logger.error(f"Unexpected error during admin preview for question '{question}': {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected internal error occurred during preview: {e}"
         )

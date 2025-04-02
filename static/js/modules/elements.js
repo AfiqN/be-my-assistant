@@ -20,6 +20,7 @@ const Elements = {
 
   // Admin view elements
   admin: {
+    // Upload elements (sudah ada)
     uploadForm: document.getElementById("uploadForm"),
     fileInput: document.getElementById("fileInput"),
     browseBtn: document.getElementById("browseBtn"),
@@ -27,6 +28,16 @@ const Elements = {
     uploadBtn: document.getElementById("uploadBtn"),
     uploadStatus: document.getElementById("uploadStatus"),
     documentList: document.getElementById("documentList"),
+
+    // Preview elements (TAMBAHKAN INI)
+    previewForm: document.getElementById("previewForm"),
+    previewQuestionInput: document.getElementById("previewQuestionInput"),
+    previewSubmitBtn: document.getElementById("previewSubmitBtn"),
+    previewSpinner: document.getElementById("previewSpinner"),
+    previewResults: document.getElementById("previewResults"),
+    retrievedChunksList: document.getElementById("retrievedChunksList"),
+    draftAnswer: document.getElementById("draftAnswer"),
+    previewStatus: document.getElementById("previewStatus"),
   },
 
   // Customer view elements

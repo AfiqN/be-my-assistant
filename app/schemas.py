@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List, Dict # Add List and Dict
+from typing import Optional, List, Dict, Any # Add List and Dict
 
 # --- Chat Endpoint Schemas ---
 class ChatMessage(BaseModel):
@@ -32,3 +32,19 @@ class UploadSuccessResponse(BaseModel):
     filename: str            # The name of the file that was uploaded.
     message: str             # A confirmation message (e.g., "File processed successfully").
     chunks_added: Optional[int] = None # Optional: How many text chunks were added to the store.
+
+class AdminPreviewRequest(BaseModel):
+    """Schema for the admin context preview request."""
+    question: str
+
+class RetrievedChunkInfo(BaseModel):
+    """Schema for information about a single retrieved chunk."""
+    source: Optional[str] = "Unknown Source" # Filename or URL
+    content_preview: str # First N characters of the chunk
+    full_content: str
+    distance: Optional[float] = None # Similarity score/distance
+
+class AdminPreviewResponse(BaseModel):
+    """Schema for the admin context preview response."""
+    retrieved_chunks: List[RetrievedChunkInfo]
+    draft_answer: str

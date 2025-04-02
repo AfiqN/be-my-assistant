@@ -91,6 +91,23 @@ const ApiService = {
       handleResponse(response, "Admin")
     );
   },
+
+  /**
+   * Send an admin test question to get context preview
+   * @param {string} question - The admin's test question
+   * @returns {Promise} - Promise that resolves to the preview response {retrieved_chunks, draft_answer}
+   */
+  getAdminPreview(question) {
+    const payload = {
+      question: question,
+    };
+
+    return fetch(`${API_BASE_URL}/admin/preview_context`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then((response) => handleResponse(response, "Admin Preview"));
+  },
 };
 
 export default ApiService;
