@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 class PersonaSettingsState(BaseModel):
     ai_name: str = "AI Assistant"
     ai_role: str = "Customer Service AI"
-    ai_tone: str = "friendly and helpful"
-    company: str = "Company"
+    ai_tone: str = "friendly, helpful, enthusiastic and engaging"
+    company: str = "-"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

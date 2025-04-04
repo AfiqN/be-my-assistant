@@ -25,9 +25,6 @@ class Settings(BaseSettings):
     # --- API Keys ---
     GOOGLE_API_KEY: Optional[str] = None
 
-    # --- File Upload Configuration ---
-    UPLOAD_TEMP_DIR: str = "/tmp/bma_uploads"
-
     # --- Pydantic-Settings Configuration ---
     model_config = SettingsConfigDict(
         env_file='.env',          # Specifies the name of the .env file to load.
@@ -45,10 +42,3 @@ if not settings.GOOGLE_API_KEY:
     logger.warning("WARNING: GOOGLE_API_KEY is not set in environment variables or .env file.")
     logger.warning("LLM-dependent features (like /chat) will likely fail.")
     logger.warning("-----------------------------------------------------")
-
-# Ensure the temporary directory for uploads exists.
-try:
-    os.makedirs(settings.UPLOAD_TEMP_DIR, exist_ok=True)
-    logger.info(f"Ensured temporary upload directory exists at: {settings.UPLOAD_TEMP_DIR}")
-except OSError as e:
-    logger.error(f"CRITICAL: Could not create temporary upload directory {settings.UPLOAD_TEMP_DIR}: {e}")
