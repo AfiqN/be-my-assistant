@@ -48,3 +48,14 @@ class AdminPreviewResponse(BaseModel):
     """Schema for the admin context preview response."""
     retrieved_chunks: List[RetrievedChunkInfo]
     draft_answer: str
+
+class PersonaSettings(BaseModel):
+    """Schema representing the AI persona settings."""
+    ai_name: str
+    ai_role: str
+    ai_tone: str
+    company: str
+
+class SetPersonaRequest(PersonaSettings):
+    """Schema for the request body when updating persona settings."""
+    pass # Inherits fields from PersonaSettings

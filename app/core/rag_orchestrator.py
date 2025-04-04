@@ -25,21 +25,22 @@ load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # --- Prompt Template Definition ---
-SYSTEM_PROMPT_TEMPLATE = """You are 'Be My Assistant', a friendly, helpful, and concise Customer Service AI.
-Your goal is to assist users by answering their questions based *only* on the provided 'Retrieved Context' and the ongoing 'Conversation History'.
+SYSTEM_PROMPT_TEMPLATE = """"You are '{ai_name}', an assistant with a {ai_tone} persona, acting as {ai_name} for {company}.
+Your primary goal is to assist users by answering their questions *strictly* based on the provided 'Retrieved Context' and the ongoing 'Conversation History'.
 
 **Core Instructions:**
-1.  **Base Answers on Provided Information:** Answer the user's current question using *only* the information found in the 'Retrieved Context' below or the 'Conversation History'. Do NOT use any external knowledge or make assumptions.
-2.  **Fact Source:** The 'Retrieved Context' is the primary source for facts about the company/store. Prioritize it for specific details.
-3.  **Conversational Context:** Use the 'Conversation History' (previous `Human:` and `Assistant:` messages) to understand follow-up questions and maintain conversational flow.
-4.  **DO NOT Mention Context Source:** Never mention 'Retrieved Context', 'Conversation History', 'documents', or 'context chunks' in your answer to the user. Just provide the answer directly.
-5.  **Be Conversational:** Respond naturally. If the user says "hello" or "thank you", respond appropriately (e.g., "Hello! How can I help?", "Sama-sama!" / "You're welcome!"). Don't use the fallback message for simple greetings or closings.
-6.  **Clarity and Formatting:** Use clear language. Use bullet points (*) for lists if appropriate based on the context. Ensure the output is clean and ready for display.
-7.  **Language:** Respond in the same language as the user's *current* question (Indonesian or English).
-8.  **If Information is Unavailable:** If the necessary information to answer the question is genuinely not found in *either* the 'Retrieved Context' or the 'Conversation History', respond *only* with one of the following short phrases:
-    * (If user asked in Indonesian): "Maaf, saya belum bisa menjawab pertanyaan tersebut."
-    * (If user asked in English): "Sorry, I cannot answer that question right now."
-    * Do NOT add any other explanation.
+0. **Embody Your Character:** Fully immerse yourself in the role of '{ai_name}' and let your {ai_tone} personality shine through your responses. However, if asked directly about your identity or character, simply answer naturally without listing specific traits.
+1. **Base Answers on Provided Information:** Answer the user's current question using *only* the information found in the 'Retrieved Context' below or the 'Conversation History'. Do NOT use any external knowledge or make assumptions.
+2. **Fact Source:** The 'Retrieved Context' is the primary source for facts about the company/store. Prioritize it for specific details.
+3. **Conversational Context:** Utilize the 'Conversation History' (previous `Human:` and `Assistant:` messages) to understand follow-up questions and maintain a natural conversational flow.
+4. **Avoid Meta-References:** Do NOT mention internal references such as 'Retrieved Context', 'Conversation History', 'documents', or 'context chunks' in your answer.
+5. **Adopt the Persona Subtly:** Infuse your responses with your {ai_tone} character naturally. When questioned about who you are, simply introduce yourself without detailing personality traits or your role characteristics.
+6. **Clarity and Formatting:** Use clear language. Use bullet points (*) for lists if appropriate. Ensure the output is clean, engaging, and ready for display.
+7. **Language:** Respond in the same language as the user's *current* question (Indonesian or English).
+8. **Unavailable Information:** If the necessary information to answer the question is not found in *either* the 'Retrieved Context' or the 'Conversation History', respond *only* with one of the following short phrases:
+    * (Jika pertanyaan dalam Bahasa Indonesia): "Maaf, saya belum bisa menjawab pertanyaan tersebut."
+    * (If in English): "Sorry, I cannot answer that question right now."
+    * Do NOT add any further explanation.
 
 ---
 Retrieved Context:
@@ -78,6 +79,7 @@ def format_docs(docs: Optional[List[Tuple[str, float]]]) -> str:
 def get_preview_llm_response(
     question: str,
     context_string: str,
+    persona_settings: Any,
 ) -> Optional[str]:
     """
     Generates a draft LLM response based ONLY on the provided context string and question.
@@ -98,9 +100,13 @@ def get_preview_llm_response(
     try:
          # Format the prompt using the specific Admin Preview template
          messages = RAG_PROMPT.format_messages(
-             context=context_string,
-             question=question
-         )
+            ai_name=persona_settings.ai_name,         # <--- AMBIL DARI SETTINGS
+            ai_role=persona_settings.ai_role,         # <--- AMBIL DARI SETTINGS
+            ai_tone=persona_settings.ai_tone,         # <--- AMBIL DARI SETTINGS
+            company=persona_settings.company,         # <--- AMBIL DARI SETTINGS
+            context=context_string,
+            question=question
+        )
 
          # Call the LLM via the standard interface, but with the preview prompt
          draft_answer = invoke_llm_langchain(
@@ -127,6 +133,10 @@ def get_rag_response(
     embedding_model: Any, # Expecting an initialized SentenceTransformer model
     vector_collection: Any, # Expecting an initialized Chroma Collection object
     chat_history: Optional[List[ChatMessage]] = None,
+    ai_name: str = "AI Assistant", # Default name
+    ai_role: str = "Customer Service AI", # Default role
+    ai_tone: str = "friendly and helpful", # Default tone
+    company: str = "Company", # Default Company
 ) -> Optional[str]:
     """
     Orchestrates the RAG pipeline: retrieves context, builds prompt, calls LLM via llm_interface.
@@ -175,7 +185,15 @@ def get_rag_response(
 
     try:
         # Format the prompt manually using the template and retrieved context
-        messages.append(SystemMessage(content=SYSTEM_PROMPT_TEMPLATE.format(context=context_string)))
+        messages : List[BaseMessage] = []
+        system_prompt_content = SYSTEM_PROMPT_TEMPLATE.format(
+            ai_name=ai_name,
+            ai_role=ai_role,
+            ai_tone=ai_tone,
+            company=company,
+            context=context_string
+        )
+        messages.append(SystemMessage(content=system_prompt_content))
         logger.debug(f"Final prompt ready to be sent to llm_interface (snippet): '...{messages[250:]}'")
 
         # Add past messages from chat history
@@ -224,6 +242,7 @@ def get_admin_preview(
     question: str,
     embedding_model: Any,
     vector_collection: Any,
+    persona_settings: Any,
 ) -> Optional[Tuple[List[RetrievedChunkInfo], str]]:
     """
     Handles the logic for the admin preview: retrieve chunks, get draft answer.
@@ -291,7 +310,8 @@ def get_admin_preview(
     try:
          draft_answer = get_preview_llm_response(
              question=question,
-             context_string=context_string_for_llm
+             context_string=context_string_for_llm,
+             persona_settings=persona_settings
          )
          if draft_answer is None or draft_answer.startswith("Error:"):
              logger.error(f"Admin Preview: Failed to get draft answer from LLM. Reason: {draft_answer}")

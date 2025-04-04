@@ -20,7 +20,7 @@ const Elements = {
 
   // Admin view elements
   admin: {
-    // Upload elements (sudah ada)
+    // Upload elements
     uploadForm: document.getElementById("uploadForm"),
     fileInput: document.getElementById("fileInput"),
     browseBtn: document.getElementById("browseBtn"),
@@ -29,7 +29,7 @@ const Elements = {
     uploadStatus: document.getElementById("uploadStatus"),
     documentList: document.getElementById("documentList"),
 
-    // Preview elements (TAMBAHKAN INI)
+    // Preview elements
     previewForm: document.getElementById("previewForm"),
     previewQuestionInput: document.getElementById("previewQuestionInput"),
     previewSubmitBtn: document.getElementById("previewSubmitBtn"),
@@ -38,6 +38,14 @@ const Elements = {
     retrievedChunksList: document.getElementById("retrievedChunksList"),
     draftAnswer: document.getElementById("draftAnswer"),
     previewStatus: document.getElementById("previewStatus"),
+
+    personaForm: document.getElementById("personaForm"),
+    aiNameInput: document.getElementById("aiNameInput"),
+    aiRoleSelect: document.getElementById("aiRoleSelect"),
+    aiToneInput: document.getElementById("aiToneInput"),
+    aiCompanyInput: document.getElementById("aiCompanyInput"),
+    savePersonaBtn: document.getElementById("savePersonaBtn"),
+    personaStatus: document.getElementById("personaStatus"), // Div for status messages
   },
 
   // Customer view elements

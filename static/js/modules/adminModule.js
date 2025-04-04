@@ -8,7 +8,8 @@ const AdminModule = {
     this.AppState = AppState;
     this.Elements = Elements;
     this.initAdminFileUpload();
-    this.initAdminPreview(); // Initialize the preview section
+    this.initAdminPreview();
+    this.initAdminPersona();
   },
 
   // --- Admin File Upload Logic ---
@@ -528,7 +529,120 @@ const AdminModule = {
         if (buttonIcon) buttonIcon.style.display = "inline-block"; // Restore icon
       });
   },
-  // --- End Admin Preview Logic ---
+
+  initAdminPersona() {
+    const { personaForm, savePersonaBtn } = this.Elements.admin;
+    if (!personaForm) {
+      console.warn("Admin persona form not found. Skipping persona listeners.");
+      return;
+    }
+
+    // Load existing settings when the module initializes (or when view becomes active)
+    this.loadPersonaSettings();
+
+    // Add listener for the save button (using form submit event)
+    personaForm.addEventListener("submit", (e) => this.handleSavePersona(e));
+  },
+
+  /**
+   * Fetches current persona settings and populates the form.
+   */
+  loadPersonaSettings() {
+    const {
+      aiNameInput,
+      aiRoleSelect,
+      aiToneInput,
+      aiCompanyInput,
+      personaStatus,
+    } = this.Elements.admin;
+    if (!aiNameInput || !aiRoleSelect || !aiToneInput || !aiCompanyInput)
+      return; // Check if elements exist
+
+    this.showAdminStatus(
+      "Loading persona settings...",
+      "loading",
+      personaStatus
+    );
+
+    ApiService.getCurrentPersona()
+      .then((settings) => {
+        aiNameInput.value = "";
+        aiRoleSelect.value = "";
+        aiToneInput.value = "";
+        aiCompanyInput.value = "";
+        this.showAdminStatus("", "clear", personaStatus); // Clear loading message
+        console.info("Persona settings loaded into form.");
+      })
+      .catch((error) => {
+        console.error("Error loading persona settings:", error);
+        this.showAdminStatus(
+          `Error loading settings: ${error.message}`,
+          "error",
+          personaStatus
+        );
+      });
+  },
+
+  /**
+   * Handles the submission of the persona settings form.
+   * @param {Event} e - The form submission event.
+   */
+  handleSavePersona(e) {
+    e.preventDefault(); // Prevent default form submission
+    const {
+      aiNameInput,
+      aiRoleSelect,
+      aiToneInput,
+      aiCompanyInput,
+      savePersonaBtn,
+      personaStatus,
+    } = this.Elements.admin;
+
+    const personaData = {
+      ai_name: aiNameInput.value.trim(),
+      ai_role: aiRoleSelect.value,
+      ai_tone: aiToneInput.value.trim(),
+      company: aiCompanyInput.value.trim(),
+    };
+
+    this.showAdminStatus(
+      "Saving persona settings...",
+      "loading",
+      personaStatus
+    );
+    savePersonaBtn.disabled = true;
+    const originalButtonText = savePersonaBtn.innerHTML;
+    savePersonaBtn.innerHTML =
+      '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+
+    ApiService.savePersonaSettings(personaData)
+      .then((updatedSettings) => {
+        this.showAdminStatus(
+          "Persona settings saved successfully!",
+          "success",
+          personaStatus
+        );
+        console.info("Persona settings saved:", updatedSettings);
+        // Optionally re-populate form, though it should match
+        aiNameInput.value = updatedSettings.ai_name;
+        aiRoleSelect.value = updatedSettings.ai_role;
+        aiToneInput.value = updatedSettings.ai_tone;
+        aiCompanyInput.value = updatedSettings.company;
+      })
+      .catch((error) => {
+        console.error("Error saving persona settings:", error);
+        this.showAdminStatus(
+          `Error saving settings: ${error.message}`,
+          "error",
+          personaStatus
+        );
+      })
+      .finally(() => {
+        // Restore button state
+        savePersonaBtn.disabled = false;
+        savePersonaBtn.innerHTML = originalButtonText;
+      });
+  },
 };
 
 export default AdminModule;

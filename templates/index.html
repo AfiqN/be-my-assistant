@@ -152,6 +152,66 @@
                   </div>
                 </div>
 
+                <div class="card persona-card mb-4">
+                  <div class="card-header">
+                    <h4><i class="bi bi-person-badge"></i> Configure AI Persona</h4>
+                  </div>
+                  <div class="card-body">
+                    <form id="personaForm">
+                      <div class="mb-3">
+                        <label for="aiNameInput" class="form-label">AI Name:</label>
+                        <input
+                          type="text"
+                          class="form-control"
+                          id="aiNameInput"
+                          placeholder="e.g., FiktiBot, Assistant, (Optional, uses default if empty)"
+                        />
+                        <div class="form-text">The name your customers will see.</div>
+                      </div>
+      
+                      <div class="mb-3">
+                        <label for="aiRoleSelect" class="form-label">AI Role:</label>
+                        <select class="form-select" id="aiRoleSelect" required>
+                          <option value="" disabled selected>-- Select a Role --</option>
+                          <option value="Customer Service AI">Customer Service AI</option>
+                          <option value="Support Bot">Support Bot</option>
+                          <option value="Sales Assistant">Sales Assistant</option>
+                          <option value="Information Guide">Information Guide</option>
+                          <option value="Company Representative">Company Representative</option>
+                          </select>
+                        <div class="form-text">Defines the primary function of the AI.</div>
+                      </div>
+      
+                      <div class="mb-3">
+                        <label for="aiToneInput" class="form-label">Personality / Tone:</label>
+                        <textarea
+                          class="form-control"
+                          id="aiToneInput"
+                          rows="3"
+                          placeholder="Describe the AI's tone, e.g., friendly and helpful, formal and concise, enthusiastic and engaging"
+                        ></textarea>
+                        <div class="form-text">Describe how the AI should sound (adjectives work well).</div>
+                      </div>
+                      
+                      <div class="mb-3">
+                        <label for="aiCompanyInput" class="form-label">Company / Store name:</label>
+                        <textarea
+                          class="form-control"
+                          id="aiCompanyInput"
+                          rows="1"
+                          placeholder="Enter the name of your company or store (Optional, uses default if empty)"
+                        ></textarea>
+                        <div class="form-text">Used in the AI's introductory prompts. Leave empty to use a default placeholder.</div>
+                      </div>
+      
+                      <button type="submit" class="btn btn-success w-100" id="savePersonaBtn">
+                        <i class="bi bi-save"></i> Save Persona Settings
+                      </button>
+                    </form>
+                    <div id="personaStatus" class="mt-3"></div>
+                  </div>
+                </div>
+
                 <div class="card preview-card mt-4">
                   <div class="card-header">
                     <h4><i class="bi bi-search"></i> Test Context Retrieval</h4>

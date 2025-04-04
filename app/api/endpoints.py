@@ -10,7 +10,8 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 
 from app.schemas import ( # Group imports
     ChatRequest, ChatResponse, UploadSuccessResponse,
-    AdminPreviewRequest, AdminPreviewResponse, RetrievedChunkInfo # Added Admin schemas
+    AdminPreviewRequest, AdminPreviewResponse, RetrievedChunkInfo, # Added Admin schemas
+    PersonaSettings, SetPersonaRequest
 )
 
 # Import core logic functions from sibling 'core' directory
@@ -44,6 +45,15 @@ async def get_vector_collection(request: Request) -> Any:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Vector store is not ready.")
     return collection
 
+async def get_persona_settings(request: Request) -> Any:
+     """Retrieves the current persona settings object from app state."""
+     settings_obj = getattr(request.app.state, 'persona_settings', None)
+     if settings_obj is None:
+         logger.error("Dependency Error: Persona settings not available in app state.")
+         # This indicates a startup issue, likely shouldn't happen if initialized correctly
+         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Persona settings are not initialized.")
+     return settings_obj
+
 ALLOWED_MIME_TYPES = {
     "application/pdf",
     "text/plain",
@@ -51,6 +61,63 @@ ALLOWED_MIME_TYPES = {
     "text/markdown",
     "text/x-markdown",
 }
+
+@router.get(
+    "/admin/persona",
+    response_model=PersonaSettings,
+    summary="Get Current AI Persona Settings",
+    description="Retrieves the currently configured AI name, role, and tone."
+)
+async def get_current_persona(
+    persona_settings_state: Any = Depends(get_persona_settings) # Inject current settings
+):
+     """Returns the current AI persona configuration."""
+     return persona_settings_state # Return the state object directly (Pydantic handles serialization)
+
+@router.put(
+    "/admin/persona",
+    response_model=PersonaSettings,
+    summary="Update AI Persona Settings",
+    description="Sets a new AI name, role, and tone for the assistant."
+)
+async def set_current_persona(
+    new_settings: SetPersonaRequest, # Request body with new settings
+    request: Request, # Need access to request to modify app state
+    default_settings: Any = Depends(get_persona_settings) 
+):
+    """Updates the AI persona configuration in the application state, using defaults for empty fields."""
+
+    # Get the actual mutable state object from the app
+    current_settings_state = getattr(request.app.state, 'persona_settings', None)
+    if current_settings_state is None:
+        # Should not happen if lifespan initialization works
+        logger.error("Critical Error: Attempted to set persona, but state object is missing.")
+        raise HTTPException(status_code=500, detail="Persona state not found.")
+
+    # Update the state object, using new value ONLY if it's not empty/whitespace
+    # Otherwise, the existing value (from the default_settings injection) remains
+    if new_settings.ai_name.strip():
+        current_settings_state.ai_name = new_settings.ai_name.strip()
+    # No need for 'else', it just keeps the existing value
+
+    if new_settings.ai_role: # Check if a role was selected (not the empty "-- Use Default Role --" value)
+        current_settings_state.ai_role = new_settings.ai_role
+    # No need for 'else'
+
+    if new_settings.ai_tone.strip():
+        current_settings_state.ai_tone = new_settings.ai_tone.strip()
+    # No need for 'else'
+
+    if new_settings.company.strip(): # Update company name if provided
+        current_settings_state.company = new_settings.company.strip()
+    # No need for 'else'
+
+
+    logger.info(f"AI Persona Updated: Name='{current_settings_state.ai_name}', Role='{current_settings_state.ai_role}', Tone='{current_settings_state.ai_tone}', Company='{current_settings_state.company}'")
+
+    # Return the potentially modified settings state
+    # Pydantic will serialize the current_settings_state object for the response
+    return current_settings_state
 
 # --- API Endpoint Implementations ---
 @router.post(
@@ -226,6 +293,7 @@ async def chat_with_rag(
     chat_request: ChatRequest, # Use the Pydantic schema for request body validation
     embedding_model: Any = Depends(get_embedding_model), # Inject dependencies
     vector_collection: Any = Depends(get_vector_collection),
+    persona_settings_state: Any = Depends(get_persona_settings)
 ):
     """
     Endpoint to handle chat requests using the RAG pipeline.
@@ -243,12 +311,22 @@ async def chat_with_rag(
 
     # --- 2. Call RAG Orchestrator ---
     try:
+
+        current_ai_name = persona_settings_state.ai_name
+        current_ai_role = persona_settings_state.ai_role
+        current_ai_tone = persona_settings_state.ai_tone
+        current_company = persona_settings_state.company
+
         # Call the main RAG function, passing the question and injected resources
         answer = get_rag_response(
             question=question,
             embedding_model=embedding_model,
             vector_collection=vector_collection,
-            chat_history=chat_history
+            chat_history=chat_history,
+            ai_name=current_ai_name,
+            ai_role=current_ai_role,
+            ai_tone=current_ai_tone,
+            company=current_company,
         )
 
         # --- 3. Handle Response/Errors from RAG ---
@@ -346,6 +424,7 @@ async def preview_context(
     preview_request: AdminPreviewRequest,
     embedding_model: Any = Depends(get_embedding_model),
     vector_collection: Any = Depends(get_vector_collection),
+    persona_settings_state: Any = Depends(get_persona_settings), 
 ):
     """
     Endpoint for admin context preview functionality.
@@ -365,6 +444,7 @@ async def preview_context(
             question=question,
             embedding_model=embedding_model,
             vector_collection=vector_collection,
+            persona_settings=persona_settings_state 
         )
 
         if preview_result is None:

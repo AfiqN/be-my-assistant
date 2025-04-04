@@ -108,6 +108,29 @@ const ApiService = {
       body: JSON.stringify(payload),
     }).then((response) => handleResponse(response, "Admin Preview"));
   },
+
+  /**
+   * Get the current AI persona settings from the backend.
+   * @returns {Promise} - Promise that resolves to the persona settings object {ai_name, ai_role, ai_tone}.
+   */
+  getCurrentPersona() {
+    return fetch(`${API_BASE_URL}/admin/persona`, {
+      method: "GET",
+    }).then((response) => handleResponse(response, "Admin Persona GET"));
+  },
+
+  /**
+   * Save new AI persona settings to the backend.
+   * @param {object} personaData - Object containing {ai_name, ai_role, ai_tone}.
+   * @returns {Promise} - Promise that resolves to the updated persona settings object.
+   */
+  savePersonaSettings(personaData) {
+    return fetch(`${API_BASE_URL}/admin/persona`, {
+      method: "PUT", // Use PUT for updating existing resource
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(personaData),
+    }).then((response) => handleResponse(response, "Admin Persona PUT"));
+  },
 };
 
 export default ApiService;

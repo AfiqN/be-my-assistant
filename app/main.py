@@ -10,9 +10,16 @@ from app.api.endpoints import router as api_router
 from app.config import settings
 from app.core.model_loader import initialize_embedding_model
 from app.core.vector_store_manager import initialize_vector_store
+from pydantic import BaseModel
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+class PersonaSettingsState(BaseModel):
+    ai_name: str = "AI Assistant"
+    ai_role: str = "Customer Service AI"
+    ai_tone: str = "friendly and helpful"
+    company: str = "Company"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,6 +42,9 @@ async def lifespan(app: FastAPI):
     if vector_collection is None:
         logger.error("CRITICAL FAILURE: Vector store collection failed to initialize.")
     app.state.vector_collection = vector_collection 
+
+    app.state.persona_settings = PersonaSettingsState()
+    logger.info(f"Default Persona Set: Name='{app.state.persona_settings.ai_name}', Role='{app.state.persona_settings.ai_role}', Tone='{app.state.persona_settings.ai_tone}', Company='{app.state.persona_settings.company}'")
 
     logger.info("Application startup sequence potentially completed (check logs for errors).")
 
