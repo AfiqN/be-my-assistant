@@ -14,6 +14,8 @@ from app.schemas import ( # Group imports
     PersonaSettings, SetPersonaRequest
 )
 
+from app.dependencies import limiter
+
 # Import core logic functions from sibling 'core' directory
 from app.core.document_processor import load_document, split_text_into_chunks
 from app.core.vector_store_manager import embed_texts, add_texts_to_vector_store, delete_documents_by_source
@@ -126,8 +128,10 @@ async def set_current_persona(
     summary="Upload and Process PDF Document",
     description="Accepts PDF, TXT, DOCX, or MD files, extracts text, generates embeddings, and stores them."
 )
+@limiter.limit("20/hour")
 async def upload_document(
     *, # Use * to make following arguments keyword-only
+    request: Request,
     file: UploadFile = File(..., description="The document (PDF, TXT, DOCX, MD) to upload."),
     embedding_model: Any = Depends(get_embedding_model), # Inject embedding model
     vector_collection: Any = Depends(get_vector_collection) # Inject vector store collection
@@ -289,7 +293,9 @@ async def upload_document(
     summary="Chat with RAG Assistant",
     description="Sends a question to the RAG system, retrieves relevant context from uploaded documents, and generates an answer using an LLM."
 )
+@limiter.limit("30/minute")
 async def chat_with_rag(
+    request: Request,
     chat_request: ChatRequest, # Use the Pydantic schema for request body validation
     embedding_model: Any = Depends(get_embedding_model), # Inject dependencies
     vector_collection: Any = Depends(get_vector_collection),
@@ -420,7 +426,9 @@ async def delete_context(
     summary="Admin Context Preview",
     description="Allows admin to test a question and see retrieved context chunks and the draft AI answer based *only* on those chunks."
 )
+@limiter.limit("20/minute")
 async def preview_context(
+    request: Request,
     preview_request: AdminPreviewRequest,
     embedding_model: Any = Depends(get_embedding_model),
     vector_collection: Any = Depends(get_vector_collection),

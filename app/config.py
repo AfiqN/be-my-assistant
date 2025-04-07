@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     VECTOR_STORE_PATH: str = "app/data/chroma_db" # Default path for the main vector database
     VECTOR_COLLECTION_NAME: str = "documents"    # Default collection name
     RAG_NUM_RESULTS: int = 4                     # Default number of documents to retrieve for RAG
-    RAG_TEMPERATURE: float = 0.7                 # Default temperature for LLM generation
+    RAG_TEMPERATURE: float = 0.6                # Default temperature for LLM generation
 
     # --- API Keys ---
     GOOGLE_API_KEY: Optional[str] = None
