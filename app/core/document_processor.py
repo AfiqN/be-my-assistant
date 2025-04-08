@@ -40,7 +40,7 @@ def load_pdf_text(file_path_or_stream: io.BytesIO) -> Optional[str]:
             logger.warning(f"No text could be extracted from the PDF.")
             return None
 
-        full_text = "\n\n--- PAGE BREAK ---\n\n".join(all_text) # Keep page separation clear
+        full_text = "\n".join(all_text) # Keep page separation clear
         logger.info(f"Successfully extracted text from PDF. Total length: {len(full_text)} characters.")
         return full_text
 
@@ -213,7 +213,7 @@ def load_document(
 def split_text_into_chunks(
     text: str,
     chunk_size: int = 800,
-    chunk_overlap: int = 100
+    chunk_overlap: int = 50   
 ) -> List[str]:
     """
     Splits a given text into smaller chunks using RecursiveCharacterTextSplitter.
