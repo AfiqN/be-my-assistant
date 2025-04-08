@@ -157,7 +157,7 @@ This command will automatically discover and execute all files starting with `te
 
 ---
 
-## Future Improvements (Example Ideas)
+## Future Improvements
 
 * [ ] **Support for More Document Types:** Add parsers for formats like `.pptx`, `.csv`, or even direct web page scraping via URL input.
 * [ ] **Asynchronous Processing:** Implement a background task queue (e.g., Celery) for processing large documents to avoid blocking API responses during upload.
