@@ -1,6 +1,8 @@
 # Be My Assistant
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+
 **A customizable AI customer service assistant powered by Retrieval Augmented Generation (RAG) and FastAPI.**
 
 This project demonstrates how businesses can leverage their own documents (PDF, DOCX, TXT, MD) to create a context-aware AI assistant capable of answering customer inquiries accurately based on the provided information.
